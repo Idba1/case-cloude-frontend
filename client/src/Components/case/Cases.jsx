@@ -14,12 +14,25 @@ const priorityStyles = {
   high: "bg-rose-100 text-rose-700",
 };
 
+const statusRank = {
+  pending: 1,
+  ongoing: 2,
+  closed: 3,
+};
+
+const priorityRank = {
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
 const Cases = () => {
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
 
   useEffect(() => {
     const fetchCases = async () => {
@@ -46,24 +59,49 @@ const Cases = () => {
   }, []);
 
   const normalizedSearch = searchText.trim().toLowerCase();
-  const filteredCases = cases.filter((item) => {
-    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-    const searchableText = [
-      item.title,
-      item.caseNumber,
-      item.category,
-      item.client?.name,
-      item.lawyer?.name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+  const filteredCases = cases
+    .filter((item) => {
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      const searchableText = [
+        item.title,
+        item.caseNumber,
+        item.category,
+        item.client?.name,
+        item.lawyer?.name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-    const matchesSearch =
-      !normalizedSearch || searchableText.includes(normalizedSearch);
+      const matchesSearch =
+        !normalizedSearch || searchableText.includes(normalizedSearch);
 
-    return matchesStatus && matchesSearch;
-  });
+      return matchesStatus && matchesSearch;
+    })
+    .sort((firstCase, secondCase) => {
+      if (sortBy === "status") {
+        return (
+          (statusRank[firstCase.status] || Number.MAX_SAFE_INTEGER) -
+          (statusRank[secondCase.status] || Number.MAX_SAFE_INTEGER)
+        );
+      }
+
+      if (sortBy === "priority") {
+        return (
+          (priorityRank[firstCase.priority] || Number.MAX_SAFE_INTEGER) -
+          (priorityRank[secondCase.priority] || Number.MAX_SAFE_INTEGER)
+        );
+      }
+
+      const firstDate = new Date(
+        firstCase.dates?.updatedAt || firstCase.dates?.createdAt || 0
+      ).getTime();
+      const secondDate = new Date(
+        secondCase.dates?.updatedAt || secondCase.dates?.createdAt || 0
+      ).getTime();
+
+      return secondDate - firstDate;
+    });
 
   const stats = {
     total: cases.length,
@@ -149,6 +187,16 @@ const Cases = () => {
                 <option value="pending">Pending</option>
                 <option value="ongoing">Ongoing</option>
                 <option value="closed">Closed</option>
+              </select>
+
+              <select
+                className="select select-bordered w-full md:w-52"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="newest">Sort: Newest</option>
+                <option value="status">Sort: Status</option>
+                <option value="priority">Sort: Priority</option>
               </select>
             </div>
           </div>
