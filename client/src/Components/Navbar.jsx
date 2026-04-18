@@ -24,6 +24,18 @@ const Navbar = () => {
                             <Link to="/">Home</Link>
                         </li>
                         <li>
+                            <Link to="/about">About</Link>
+                        </li>
+                        <li>
+                            <Link to="/features">Features</Link>
+                        </li>
+                        <li>
+                            <Link to="/faq">FAQ</Link>
+                        </li>
+                        <li>
+                            <Link to="/contact">Contact</Link>
+                        </li>
+                        <li>
                             <Link to="/cases">Case Dashboard</Link>
                         </li>
                         {appUser?.role === "admin" ? (
