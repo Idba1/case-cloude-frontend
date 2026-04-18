@@ -191,12 +191,20 @@ const CaseDetails = () => {
         <section className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 px-6 py-8 text-white shadow-xl md:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <Link
-                to="/"
-                className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200"
-              >
-                Back to cases
-              </Link>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  to="/"
+                  className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200"
+                >
+                  Back to cases
+                </Link>
+                <Link
+                  to={`/case/${id}/edit`}
+                  className="btn btn-sm border-0 bg-white text-slate-900 hover:bg-slate-100"
+                >
+                  Edit Case
+                </Link>
+              </div>
               <p className="mt-4 text-xs uppercase tracking-[0.25em] text-slate-300">
                 {caseData.caseNumber || "No case number"}
               </p>

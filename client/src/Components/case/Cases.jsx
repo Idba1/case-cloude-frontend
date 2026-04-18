@@ -248,12 +248,20 @@ const Cases = () => {
                       <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
                         Matter overview
                       </p>
-                      <Link
-                        to={`/case/${item._id}`}
-                        className="btn btn-sm bg-slate-900 text-white hover:bg-slate-800"
-                      >
-                        View Details
-                      </Link>
+                      <div className="flex gap-2">
+                        <Link
+                          to={`/case/${item._id}/edit`}
+                          className="btn btn-sm btn-outline"
+                        >
+                          Edit
+                        </Link>
+                        <Link
+                          to={`/case/${item._id}`}
+                          className="btn btn-sm bg-slate-900 text-white hover:bg-slate-800"
+                        >
+                          View Details
+                        </Link>
+                      </div>
                     </div>
                   </article>
                 ))}

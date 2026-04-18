@@ -6,6 +6,7 @@ import Login from "../Pages/Authentication/LogIn";
 import Cases from "../Components/case/Cases";
 import AddCase from "../Components/case/AddCase";
 import CaseDetails from "../Components/case/CaseDetails";
+import EditCase from "../Components/case/EditCase";
 
 
 const Routes = createBrowserRouter([
@@ -25,6 +26,10 @@ const Routes = createBrowserRouter([
             {
                 path: '/case/:id',
                 element: <CaseDetails></CaseDetails>,
+            },
+            {
+                path: '/case/:id/edit',
+                element: <EditCase></EditCase>,
             },
             {
                 path: '/registration',
