@@ -2,10 +2,10 @@ import { useContext } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../../Provider/AuthProvider"
 import toast from "react-hot-toast";
-import { STATIC_ADMIN_EMAIL } from "../../constants/roles";
+import { STATIC_ADMIN_EMAIL, STATIC_ADMIN_PASSWORD } from "../../constants/roles";
 
 const Login = () => {
-    const { signIn, signInWithGoogle, loadUserProfile, setAppUser } = useContext(AuthContext);
+    const { signIn, signInWithGoogle, loadUserProfile, setAppUser, loginAsStaticAdmin } = useContext(AuthContext);
     const navigate = useNavigate()
 
 
@@ -18,7 +18,7 @@ const Login = () => {
                 name: result.user.displayName || 'CaseCloud User',
                 email: result.user.email,
                 photo: result.user.photoURL || '',
-                role: result.user.email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+                role: 'client',
                 approvalStatus: 'approved',
             })
             if (existingProfile?.role === "lawyer" && existingProfile?.approvalStatus !== "approved") {
@@ -38,10 +38,17 @@ const Login = () => {
     const handleSignInEmailPass = async e => {
         e.preventDefault()
         const form = e.target
-        const email = form.email.value
+        const email = form.email.value.toLowerCase()
         const pass = form.password.value
         console.log({ email, pass })
         try {
+            if (email === STATIC_ADMIN_EMAIL?.toLowerCase() && pass === STATIC_ADMIN_PASSWORD) {
+                loginAsStaticAdmin()
+                toast.success('Admin login successful')
+                navigate('/admin/users')
+                return
+            }
+
             //User Login
             const result = await signIn(email, pass)
             console.log(result)
@@ -50,7 +57,7 @@ const Login = () => {
                 name: result.user.displayName || 'CaseCloud User',
                 email,
                 photo: result.user.photoURL || '',
-                role: email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+                role: 'client',
                 approvalStatus: 'approved',
             })
             if (existingProfile?.role === "lawyer" && existingProfile?.approvalStatus !== "approved") {
@@ -58,7 +65,7 @@ const Login = () => {
                 navigate('/')
                 return
             }
-            navigate(existingProfile?.role === "admin" ? '/admin/users' : '/cases')
+            navigate('/cases')
             toast.success('Signin Successful')
         } catch (err) {
             console.log(err)

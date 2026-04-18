@@ -11,7 +11,7 @@ import {
     updateProfile,
 } from 'firebase/auth'
 import { app } from '../firebase/firebase.config'
-import { STATIC_ADMIN_EMAIL } from '../constants/roles'
+import { ADMIN_SESSION_KEY } from '../constants/roles'
 
 export const AuthContext = createContext(null)
 const auth = getAuth(app)
@@ -21,6 +21,25 @@ const AuthProvider = ({ children }) => {
     const [user, setUser] = useState()
     const [appUser, setAppUser] = useState(null)
     const [loading, setLoading] = useState(true)
+
+    const loginAsStaticAdmin = () => {
+        const adminProfile = {
+            name: 'CaseCloud Admin',
+            email: import.meta.env.VITE_ADMIN_EMAIL,
+            photo: '',
+            role: 'admin',
+            approvalStatus: 'approved',
+        }
+
+        localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminProfile))
+        setUser({
+            displayName: adminProfile.name,
+            email: adminProfile.email,
+            photoURL: '',
+        })
+        setAppUser(adminProfile)
+        setLoading(false)
+    }
 
     const syncUserProfile = async (profile) => {
         const response = await fetch('http://localhost:5000/users', {
@@ -61,6 +80,15 @@ const AuthProvider = ({ children }) => {
 
     const logOut = async () => {
         setLoading(true)
+        localStorage.removeItem(ADMIN_SESSION_KEY)
+
+        if (!auth.currentUser) {
+            setUser(null)
+            setAppUser(null)
+            setLoading(false)
+            return Promise.resolve()
+        }
+
         return signOut(auth)
     }
 
@@ -77,6 +105,20 @@ const AuthProvider = ({ children }) => {
             setUser(currentUser)
 
             if (!currentUser?.email) {
+                const storedAdminSession = localStorage.getItem(ADMIN_SESSION_KEY)
+
+                if (storedAdminSession) {
+                    const parsedAdmin = JSON.parse(storedAdminSession)
+                    setUser({
+                        displayName: parsedAdmin.name,
+                        email: parsedAdmin.email,
+                        photoURL: parsedAdmin.photo || '',
+                    })
+                    setAppUser(parsedAdmin)
+                    setLoading(false)
+                    return
+                }
+
                 setAppUser(null)
                 setLoading(false)
                 return
@@ -92,11 +134,8 @@ const AuthProvider = ({ children }) => {
                         name: currentUser.displayName || 'CaseCloud User',
                         email: currentUser.email,
                         photo: currentUser.photoURL || '',
-                        role: currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
-                        approvalStatus:
-                            currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL
-                                ? 'approved'
-                                : 'approved',
+                        role: 'client',
+                        approvalStatus: 'approved',
                     }
 
                     await syncUserProfile(fallbackProfile)
@@ -108,11 +147,8 @@ const AuthProvider = ({ children }) => {
                     name: currentUser.displayName || 'CaseCloud User',
                     email: currentUser.email,
                     photo: currentUser.photoURL || '',
-                    role: currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
-                    approvalStatus:
-                        currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL
-                            ? 'approved'
-                            : 'approved',
+                    role: 'client',
+                    approvalStatus: 'approved',
                 })
             } finally {
                 setLoading(false)
@@ -135,6 +171,7 @@ const AuthProvider = ({ children }) => {
         signIn,
         signInWithGoogle,
         logOut,
+        loginAsStaticAdmin,
         updateUserProfile,
         syncUserProfile,
         loadUserProfile,

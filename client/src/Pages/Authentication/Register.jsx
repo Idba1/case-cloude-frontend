@@ -2,7 +2,6 @@ import { useContext } from "react"
 import toast from "react-hot-toast"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../../Provider/AuthProvider"
-import { STATIC_ADMIN_EMAIL } from "../../constants/roles"
 
 const Registration = () => {
   const navigate = useNavigate()
@@ -37,13 +36,8 @@ const Registration = () => {
         name,
         email: normalizedEmail,
         photo,
-        role: normalizedEmail === STATIC_ADMIN_EMAIL ? "admin" : role,
-        approvalStatus:
-          normalizedEmail === STATIC_ADMIN_EMAIL
-            ? "approved"
-            : role === "lawyer"
-            ? "pending"
-            : "approved",
+        role,
+        approvalStatus: role === "lawyer" ? "pending" : "approved",
       }
       await syncUserProfile(profile)
       setAppUser(profile)
@@ -51,8 +45,6 @@ const Registration = () => {
       toast.success(
         profile.role === "lawyer"
           ? "Lawyer registration submitted. Wait for admin approval."
-          : profile.role === "admin"
-          ? "Static admin account created successfully."
           : "Signup Successful"
       )
     } catch (err) {
@@ -70,7 +62,7 @@ const Registration = () => {
         name: result.user.displayName || 'CaseCloud User',
         email: normalizedEmail,
         photo: result.user.photoURL || '',
-        role: normalizedEmail === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+        role: 'client',
         approvalStatus: 'approved',
       }
       await syncUserProfile(profile)
@@ -197,9 +189,6 @@ const Registration = () => {
                 <option value='lawyer'>Lawyer</option>
                 <option value='assistant'>Assistant</option>
               </select>
-              <p className='mt-2 text-xs text-gray-500'>
-                Use <span className='font-semibold'>{STATIC_ADMIN_EMAIL}</span> if you want to create the static admin account.
-              </p>
             </div>
 
             <div className='mt-4'>
