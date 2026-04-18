@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import DeleteCaseButton from "./DeleteCaseButton";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -69,6 +70,10 @@ const Cases = () => {
     pending: cases.filter((item) => item.status === "pending").length,
     ongoing: cases.filter((item) => item.status === "ongoing").length,
     closed: cases.filter((item) => item.status === "closed").length,
+  };
+
+  const handleCaseDeleted = (deletedId) => {
+    setCases((current) => current.filter((item) => item._id !== deletedId));
   };
 
   return (
@@ -249,6 +254,12 @@ const Cases = () => {
                         Matter overview
                       </p>
                       <div className="flex gap-2">
+                        <DeleteCaseButton
+                          caseId={item._id}
+                          caseTitle={item.title}
+                          className="btn btn-sm btn-outline btn-error"
+                          onDeleted={() => handleCaseDeleted(item._id)}
+                        />
                         <Link
                           to={`/case/${item._id}/edit`}
                           className="btn btn-sm btn-outline"

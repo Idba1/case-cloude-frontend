@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import DeleteCaseButton from "./DeleteCaseButton";
 import UpdateCase from "./UpdateCase";
 
 const statusStyles = {
@@ -18,6 +19,7 @@ const STATUS_HISTORY_KEY = "case-status-history";
 
 const CaseDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [caseData, setCaseData] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [statusHistory, setStatusHistory] = useState([]);
@@ -204,6 +206,12 @@ const CaseDetails = () => {
                 >
                   Edit Case
                 </Link>
+                <DeleteCaseButton
+                  caseId={id}
+                  caseTitle={caseData?.title}
+                  className="btn btn-sm border-0 bg-red-500 text-white hover:bg-red-600"
+                  onDeleted={() => navigate("/")}
+                />
               </div>
               <p className="mt-4 text-xs uppercase tracking-[0.25em] text-slate-300">
                 {caseData.caseNumber || "No case number"}
