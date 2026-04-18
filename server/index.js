@@ -22,6 +22,14 @@ const client = new MongoClient(uri, {
     },
 });
 
+const STATIC_ADMIN = {
+    name: "CaseCloud Admin",
+    email: "admin@casecloud.com",
+    photo: "",
+    role: "admin",
+    approvalStatus: "approved",
+};
+
 let casesCollection;
 let usersCollection;
 
@@ -32,6 +40,20 @@ async function run() {
         const db = client.db("casecloud");
         casesCollection = db.collection("cases");
         usersCollection = db.collection("users");
+
+        await usersCollection.updateOne(
+            { email: STATIC_ADMIN.email },
+            {
+                $set: {
+                    ...STATIC_ADMIN,
+                    updatedAt: new Date().toISOString(),
+                },
+                $setOnInsert: {
+                    createdAt: new Date().toISOString(),
+                },
+            },
+            { upsert: true }
+        );
 
         console.log("MongoDB Connected");
     } catch (err) {
@@ -57,12 +79,24 @@ app.post("/users", async (req, res) => {
         return res.status(400).send({ message: "Email is required" });
     }
 
+    const normalizedEmail = email.toLowerCase();
+    const nextRole =
+        normalizedEmail === STATIC_ADMIN.email ? "admin" : rest.role || "client";
+    const nextApprovalStatus =
+        nextRole === "lawyer"
+            ? rest.approvalStatus || "pending"
+            : nextRole === "admin"
+                ? "approved"
+                : rest.approvalStatus || "approved";
+
     const result = await usersCollection.updateOne(
-        { email },
+        { email: normalizedEmail },
         {
             $set: {
-                email,
+                email: normalizedEmail,
                 ...rest,
+                role: nextRole,
+                approvalStatus: nextApprovalStatus,
                 updatedAt: new Date().toISOString(),
             },
             $setOnInsert: {
@@ -77,25 +111,57 @@ app.post("/users", async (req, res) => {
 
 // get user profile by email
 app.get("/users/:email", async (req, res) => {
-    const email = req.params.email;
+    const email = req.params.email.toLowerCase();
     const result = await usersCollection.findOne({ email });
     res.send(result || null);
 });
 
+// get all users
+app.get("/users", async (req, res) => {
+    const result = await usersCollection.find().toArray();
+    res.send(result);
+});
+
 // update user role
 app.patch("/users/role/:email", async (req, res) => {
-    const email = req.params.email;
+    const email = req.params.email.toLowerCase();
     const { role } = req.body;
 
     if (!role) {
         return res.status(400).send({ message: "Role is required" });
     }
 
+    const approvalStatus =
+        role === "lawyer" ? "pending" : role === "admin" ? "approved" : "approved";
+
     const result = await usersCollection.updateOne(
         { email },
         {
             $set: {
                 role,
+                approvalStatus,
+                updatedAt: new Date().toISOString(),
+            },
+        }
+    );
+
+    res.send(result);
+});
+
+// approve or reject lawyer profile
+app.patch("/users/approval/:email", async (req, res) => {
+    const email = req.params.email.toLowerCase();
+    const { approvalStatus } = req.body;
+
+    if (!approvalStatus) {
+        return res.status(400).send({ message: "Approval status is required" });
+    }
+
+    const result = await usersCollection.updateOne(
+        { email },
+        {
+            $set: {
+                approvalStatus,
                 updatedAt: new Date().toISOString(),
             },
         }

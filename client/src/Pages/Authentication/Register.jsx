@@ -2,6 +2,7 @@ import { useContext } from "react"
 import toast from "react-hot-toast"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../../Provider/AuthProvider"
+import { STATIC_ADMIN_EMAIL } from "../../constants/roles"
 
 const Registration = () => {
   const navigate = useNavigate()
@@ -31,16 +32,29 @@ const Registration = () => {
       console.log(result)
       await updateUserProfile(name, photo)
       setUser({ ...user, photoURL: photo, displayName: name })
+      const normalizedEmail = email.toLowerCase()
       const profile = {
         name,
-        email,
+        email: normalizedEmail,
         photo,
-        role,
+        role: normalizedEmail === STATIC_ADMIN_EMAIL ? "admin" : role,
+        approvalStatus:
+          normalizedEmail === STATIC_ADMIN_EMAIL
+            ? "approved"
+            : role === "lawyer"
+            ? "pending"
+            : "approved",
       }
       await syncUserProfile(profile)
       setAppUser(profile)
       navigate('/cases')
-      toast.success('Signup Successful')
+      toast.success(
+        profile.role === "lawyer"
+          ? "Lawyer registration submitted. Wait for admin approval."
+          : profile.role === "admin"
+          ? "Static admin account created successfully."
+          : "Signup Successful"
+      )
     } catch (err) {
       console.log(err)
       toast.error(err?.message)
@@ -51,11 +65,13 @@ const Registration = () => {
   const handleGoogleSignIn = async () => {
     try {
       const result = await signInWithGoogle()
+      const normalizedEmail = result.user.email.toLowerCase()
       const profile = {
         name: result.user.displayName || 'CaseCloud User',
-        email: result.user.email,
+        email: normalizedEmail,
         photo: result.user.photoURL || '',
-        role: 'client',
+        role: normalizedEmail === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+        approvalStatus: 'approved',
       }
       await syncUserProfile(profile)
       setAppUser(profile)
@@ -181,6 +197,9 @@ const Registration = () => {
                 <option value='lawyer'>Lawyer</option>
                 <option value='assistant'>Assistant</option>
               </select>
+              <p className='mt-2 text-xs text-gray-500'>
+                Use <span className='font-semibold'>{STATIC_ADMIN_EMAIL}</span> if you want to create the static admin account.
+              </p>
             </div>
 
             <div className='mt-4'>

@@ -37,7 +37,7 @@ const CaseDetails = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const isClient = appUser?.role === "client";
-  const canReviewRequest = appUser?.role === "lawyer" || appUser?.role === "admin";
+  const canReviewRequest = appUser?.role === "admin";
 
   const readStoredStatusHistory = (caseId) => {
     try {

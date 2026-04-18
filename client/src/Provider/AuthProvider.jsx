@@ -11,6 +11,7 @@ import {
     updateProfile,
 } from 'firebase/auth'
 import { app } from '../firebase/firebase.config'
+import { STATIC_ADMIN_EMAIL } from '../constants/roles'
 
 export const AuthContext = createContext(null)
 const auth = getAuth(app)
@@ -91,7 +92,11 @@ const AuthProvider = ({ children }) => {
                         name: currentUser.displayName || 'CaseCloud User',
                         email: currentUser.email,
                         photo: currentUser.photoURL || '',
-                        role: 'client',
+                        role: currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+                        approvalStatus:
+                            currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL
+                                ? 'approved'
+                                : 'approved',
                     }
 
                     await syncUserProfile(fallbackProfile)
@@ -103,7 +108,11 @@ const AuthProvider = ({ children }) => {
                     name: currentUser.displayName || 'CaseCloud User',
                     email: currentUser.email,
                     photo: currentUser.photoURL || '',
-                    role: 'client',
+                    role: currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+                    approvalStatus:
+                        currentUser.email?.toLowerCase() === STATIC_ADMIN_EMAIL
+                            ? 'approved'
+                            : 'approved',
                 })
             } finally {
                 setLoading(false)

@@ -2,6 +2,7 @@ import { useContext } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../../Provider/AuthProvider"
 import toast from "react-hot-toast";
+import { STATIC_ADMIN_EMAIL } from "../../constants/roles";
 
 const Login = () => {
     const { signIn, signInWithGoogle, loadUserProfile, setAppUser } = useContext(AuthContext);
@@ -17,10 +18,16 @@ const Login = () => {
                 name: result.user.displayName || 'CaseCloud User',
                 email: result.user.email,
                 photo: result.user.photoURL || '',
-                role: 'client',
+                role: result.user.email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+                approvalStatus: 'approved',
             })
+            if (existingProfile?.role === "lawyer" && existingProfile?.approvalStatus !== "approved") {
+                toast.error('Your lawyer account is waiting for admin approval.')
+                navigate('/')
+                return
+            }
             toast.success('Sign in successfully!')
-            navigate('/cases')
+            navigate(existingProfile?.role === "admin" ? '/admin/users' : '/cases')
         } catch (error) {
             console.log(error)
             toast.error(error?.message)
@@ -43,9 +50,15 @@ const Login = () => {
                 name: result.user.displayName || 'CaseCloud User',
                 email,
                 photo: result.user.photoURL || '',
-                role: 'client',
+                role: email?.toLowerCase() === STATIC_ADMIN_EMAIL ? 'admin' : 'client',
+                approvalStatus: 'approved',
             })
-            navigate('/cases')
+            if (existingProfile?.role === "lawyer" && existingProfile?.approvalStatus !== "approved") {
+                toast.error('Your lawyer account is waiting for admin approval.')
+                navigate('/')
+                return
+            }
+            navigate(existingProfile?.role === "admin" ? '/admin/users' : '/cases')
             toast.success('Signin Successful')
         } catch (err) {
             console.log(err)

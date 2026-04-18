@@ -33,6 +33,22 @@ const AddCase = () => {
   const [timeline, setTimeline] = useState([{ ...initialTimeline }]);
   const [errors, setErrors] = useState({});
   const isClient = appUser?.role === "client";
+  const lawyerPendingApproval =
+    appUser?.role === "lawyer" && appUser?.approvalStatus !== "approved";
+
+  if (lawyerPendingApproval) {
+    return (
+      <div className="bg-slate-100 px-4 py-8 md:px-8">
+        <div className="mx-auto max-w-6xl rounded-3xl border border-amber-200 bg-amber-50 px-6 py-12 text-center">
+          <h2 className="text-2xl font-bold text-slate-900">Lawyer approval pending</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Your lawyer profile is still waiting for admin approval. You will be able to
+            create and manage cases after the approval is completed.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const validateStep = (currentStep = step) => {
     const nextErrors = {};

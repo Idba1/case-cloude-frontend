@@ -26,6 +26,11 @@ const Navbar = () => {
                         <li>
                             <Link to="/cases">Case Dashboard</Link>
                         </li>
+                        {appUser?.role === "admin" ? (
+                            <li>
+                                <Link to="/admin/users">Admin Panel</Link>
+                            </li>
+                        ) : null}
                         <li>
                             <Link to="/add-case">Create Case</Link>
                         </li>
@@ -80,6 +85,11 @@ const Navbar = () => {
                                 <li>
                                     <Link to="/cases">Case Dashboard</Link>
                                 </li>
+                                {appUser?.role === "admin" ? (
+                                    <li>
+                                        <Link to="/admin/users">Admin Panel</Link>
+                                    </li>
+                                ) : null}
                                 <li>
                                     <Link to="/add-case">Create New Case</Link>
                                 </li>

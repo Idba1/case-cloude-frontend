@@ -71,6 +71,8 @@ const Cases = () => {
   const normalizedSearch = searchText.trim().toLowerCase();
   const role = appUser?.role || "client";
   const userEmail = appUser?.email?.toLowerCase() || "";
+  const lawyerPendingApproval =
+    role === "lawyer" && appUser?.approvalStatus !== "approved";
 
   const visibleCases = cases.filter((item) => {
     if (role === "client") {
@@ -154,6 +156,20 @@ const Cases = () => {
       <div className="bg-slate-100 px-4 py-8 md:px-8">
         <div className="mx-auto max-w-7xl rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-500">
           Loading dashboard...
+        </div>
+      </div>
+    );
+  }
+
+  if (lawyerPendingApproval) {
+    return (
+      <div className="bg-slate-100 px-4 py-8 md:px-8">
+        <div className="mx-auto max-w-7xl rounded-3xl border border-amber-200 bg-amber-50 px-6 py-12 text-center">
+          <h2 className="text-2xl font-bold text-slate-900">Lawyer approval pending</h2>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Your lawyer profile has been created, but it must be approved by the admin
+            before you can access the internal case dashboard.
+          </p>
         </div>
       </div>
     );
