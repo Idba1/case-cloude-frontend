@@ -149,7 +149,7 @@ const AddCase = () => {
       setTimeline([{ ...initialTimeline }]);
       setErrors({});
       setStep(1);
-      navigate("/");
+      navigate("/cases");
     } catch (error) {
       toast.error(error.message || "Something went wrong while creating the case.");
     } finally {

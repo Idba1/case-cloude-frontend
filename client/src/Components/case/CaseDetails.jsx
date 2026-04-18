@@ -387,7 +387,7 @@ const CaseDetails = () => {
             <div>
               <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  to="/"
+                  to="/cases"
                   className="text-sm font-semibold uppercase tracking-[0.25em] text-cyan-200"
                 >
                   Back to cases
@@ -402,7 +402,7 @@ const CaseDetails = () => {
                   caseId={id}
                   caseTitle={caseData?.title}
                   className="btn btn-sm border-0 bg-red-500 text-white hover:bg-red-600"
-                  onDeleted={() => navigate("/")}
+                  onDeleted={() => navigate("/cases")}
                 />
                 <button
                   type="button"

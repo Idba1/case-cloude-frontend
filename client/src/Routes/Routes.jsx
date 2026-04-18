@@ -3,6 +3,7 @@ import Main from "../Layout/Main";
 import ErrorPage from "../Pages/ErrorPage/ErrorPage";
 import Registration from "../Pages/Authentication/Register";
 import Login from "../Pages/Authentication/LogIn";
+import Home from "../Pages/Home/Home";
 import Cases from "../Components/case/Cases";
 import AddCase from "../Components/case/AddCase";
 import CaseDetails from "../Components/case/CaseDetails";
@@ -17,6 +18,10 @@ const Routes = createBrowserRouter([
         children: [
             {
                 path: '/',
+                element: <Home></Home>,
+            },
+            {
+                path: '/cases',
                 element: <Cases></Cases>,
             },
             {
