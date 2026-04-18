@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import DeleteCaseButton from "./DeleteCaseButton";
 import UpdateCase from "./UpdateCase";
@@ -23,6 +24,8 @@ const CaseDetails = () => {
   const [caseData, setCaseData] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [statusHistory, setStatusHistory] = useState([]);
+  const [noteText, setNoteText] = useState("");
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -187,6 +190,82 @@ const CaseDetails = () => {
     writeStoredStatusHistory(caseData._id, nextHistory);
   };
 
+  const persistCaseUpdate = async (payload, successMessage) => {
+    const response = await fetch(`http://localhost:5000/case/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to save case changes.");
+    }
+
+    if (successMessage) {
+      toast.success(successMessage);
+    }
+  };
+
+  const handleAddNote = async () => {
+    const trimmedNote = noteText.trim();
+
+    if (!trimmedNote) {
+      toast.error("Write a note before saving.");
+      return;
+    }
+
+    const nextNotes = [
+      {
+        text: trimmedNote,
+        createdAt: new Date().toISOString(),
+      },
+      ...(Array.isArray(caseData.notes) ? caseData.notes : []),
+    ];
+
+    const updatedCase = {
+      ...caseData,
+      notes: nextNotes,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    setIsSavingNote(true);
+
+    try {
+      await persistCaseUpdate(updatedCase, "Case note added.");
+      setCaseData(updatedCase);
+      setNoteText("");
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not save the case note.");
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteIndex) => {
+    const nextNotes = (Array.isArray(caseData.notes) ? caseData.notes : []).filter(
+      (_, index) => index !== noteIndex
+    );
+
+    const updatedCase = {
+      ...caseData,
+      notes: nextNotes,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await persistCaseUpdate(updatedCase, "Case note removed.");
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not remove the case note.");
+    }
+  };
+
   const handlePrintCase = () => {
     window.print();
   };
@@ -213,6 +292,91 @@ const CaseDetails = () => {
     downloadLink.download = `${sanitizedTitle || "case-details"}.json`;
     downloadLink.click();
     URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handleGenerateCaseReport = () => {
+    const reportLines = [
+      "CaseCloud Case Report",
+      "=====================",
+      `Title: ${caseData.title || "Untitled case"}`,
+      `Case Number: ${caseData.caseNumber || "Not available"}`,
+      `Category: ${caseData.category || "Not added"}`,
+      `Status: ${caseData.status || "Unknown"}`,
+      `Priority: ${caseData.priority || "Medium"}`,
+      `Created At: ${
+        caseData.dates?.createdAt
+          ? new Date(caseData.dates.createdAt).toLocaleString()
+          : "Not available"
+      }`,
+      `Last Updated: ${
+        caseData.dates?.updatedAt
+          ? new Date(caseData.dates.updatedAt).toLocaleString()
+          : "Not available"
+      }`,
+      "",
+      "Case Description",
+      "----------------",
+      caseData.description || "No description added.",
+      "",
+      "Client Information",
+      "------------------",
+      `Name: ${caseData.client?.name || "Not added"}`,
+      `Email: ${caseData.client?.email || "Not added"}`,
+      `Phone: ${caseData.client?.phone || "Not added"}`,
+      `Address: ${caseData.client?.address || "Not added"}`,
+      "",
+      "Assigned Lawyer",
+      "---------------",
+      `Name: ${caseData.lawyer?.name || "Not assigned"}`,
+      `Email: ${caseData.lawyer?.email || "Not added"}`,
+      "",
+      "Timeline",
+      "--------",
+      ...(caseData.timeline?.length
+        ? caseData.timeline.map(
+            (item, index) =>
+              `${index + 1}. ${item.date || "No date"} - ${item.event || "No details"}`
+          )
+        : ["No timeline events added."]),
+      "",
+      "Case Notes",
+      "----------",
+      ...(caseData.notes?.length
+        ? caseData.notes.map(
+            (item, index) =>
+              `${index + 1}. ${
+                item.createdAt ? new Date(item.createdAt).toLocaleString() : "No date"
+              } - ${item.text || "No note text"}`
+          )
+        : ["No case notes added."]),
+      "",
+      "Status History",
+      "--------------",
+      ...(statusHistory.length
+        ? statusHistory.map(
+            (item, index) =>
+              `${index + 1}. ${item.status} - ${
+                item.changedAt ? new Date(item.changedAt).toLocaleString() : "No date"
+              } - ${item.note || "No activity note"}`
+          )
+        : ["No status history available."]),
+    ];
+
+    const reportBlob = new Blob([reportLines.join("\n")], {
+      type: "text/plain;charset=utf-8",
+    });
+    const reportUrl = URL.createObjectURL(reportBlob);
+    const reportLink = document.createElement("a");
+    const sanitizedTitle = (caseData.title || "case-report")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    reportLink.href = reportUrl;
+    reportLink.download = `${sanitizedTitle || "case-report"}-report.txt`;
+    reportLink.click();
+    URL.revokeObjectURL(reportUrl);
+    toast.success("Case report generated.");
   };
 
   return (
@@ -253,6 +417,13 @@ const CaseDetails = () => {
                   onClick={handlePrintCase}
                 >
                   Print Case
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm border-0 bg-amber-400 text-slate-950 hover:bg-amber-300"
+                  onClick={handleGenerateCaseReport}
+                >
+                  Generate Report
                 </button>
               </div>
               <p className="mt-4 text-xs uppercase tracking-[0.25em] text-slate-300">
@@ -369,6 +540,78 @@ const CaseDetails = () => {
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-slate-500">
                     No documents attached yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Case notes</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Keep internal updates, meeting outcomes, and legal observations.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {caseData.notes?.length || 0} note{caseData.notes?.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">
+                    Add a case note
+                  </span>
+                  <textarea
+                    className="textarea textarea-bordered min-h-28 w-full"
+                    placeholder="Write a new note about this case..."
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                  />
+                </label>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    className="btn bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={handleAddNote}
+                    disabled={isSavingNote}
+                  >
+                    {isSavingNote ? "Saving..." : "Save Note"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {caseData.notes?.length ? (
+                  caseData.notes.map((item, index) => (
+                    <div
+                      key={`${item.createdAt || "note"}-${index}`}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          {item.createdAt
+                            ? new Date(item.createdAt).toLocaleString()
+                            : "No date"}
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm text-red-500 hover:bg-red-50 hover:text-red-600"
+                          onClick={() => handleDeleteNote(index)}
+                        >
+                          Delete Note
+                        </button>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-700">
+                        {item.text || "No note text"}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-slate-500">
+                    No case notes added yet.
                   </div>
                 )}
               </div>
