@@ -1,29 +1,269 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+const statusStyles = {
+  pending: "bg-amber-100 text-amber-700",
+  ongoing: "bg-sky-100 text-sky-700",
+  closed: "bg-emerald-100 text-emerald-700",
+};
+
+const priorityStyles = {
+  low: "bg-slate-100 text-slate-700",
+  medium: "bg-violet-100 text-violet-700",
+  high: "bg-rose-100 text-rose-700",
+};
+
 const Cases = () => {
-    const [cases, setCases] = useState([]);
+  const [cases, setCases] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
-    useEffect(() => {
-        fetch("http://localhost:5000/cases")
-            .then((res) => res.json())
-            .then((data) => setCases(data));
-    }, []);
+  useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        setLoading(true);
+        setError("");
 
-    return (
-        <div>
-            <h2>All Cases</h2>
+        const response = await fetch("http://localhost:5000/cases");
 
-            {cases.map((c) => (
-                <div key={c._id} style={{ border: "1px solid gray", margin: "10px" }}>
-                    <h3>{c.title}</h3>
-                    <p>Status: {c.status}</p>
+        if (!response.ok) {
+          throw new Error("Failed to load cases.");
+        }
 
-                    <Link to={`/case/${c._id}`}>View Details</Link>
-                </div>
-            ))}
-        </div>
-    );
+        const data = await response.json();
+        setCases(Array.isArray(data) ? data : []);
+      } catch (fetchError) {
+        setError(fetchError.message || "Could not load cases.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCases();
+  }, []);
+
+  const normalizedSearch = searchText.trim().toLowerCase();
+  const filteredCases = cases.filter((item) => {
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    const searchableText = [
+      item.title,
+      item.caseNumber,
+      item.category,
+      item.client?.name,
+      item.lawyer?.name,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    const matchesSearch =
+      !normalizedSearch || searchableText.includes(normalizedSearch);
+
+    return matchesStatus && matchesSearch;
+  });
+
+  const stats = {
+    total: cases.length,
+    pending: cases.filter((item) => item.status === "pending").length,
+    ongoing: cases.filter((item) => item.status === "ongoing").length,
+    closed: cases.filter((item) => item.status === "closed").length,
+  };
+
+  return (
+    <div className="bg-slate-100 px-4 py-8 md:px-8">
+      <div className="mx-auto max-w-7xl space-y-8">
+        <section className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950 px-6 py-8 text-white shadow-xl md:px-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-cyan-200">
+                Case Dashboard
+              </p>
+              <h1 className="mt-2 text-3xl font-black md:text-4xl">
+                Manage your matters from one place
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm text-slate-200 md:text-base">
+                Track every case, monitor status distribution, and jump straight into
+                the matter that needs attention next.
+              </p>
+            </div>
+
+            <Link
+              to="/add-case"
+              className="btn border-0 bg-white text-slate-900 hover:bg-slate-100"
+            >
+              Add New Case
+            </Link>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <p className="text-sm text-slate-500">Total Cases</p>
+            <h2 className="mt-2 text-3xl font-black text-slate-900">{stats.total}</h2>
+          </div>
+          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <p className="text-sm text-slate-500">Pending</p>
+            <h2 className="mt-2 text-3xl font-black text-amber-600">{stats.pending}</h2>
+          </div>
+          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <p className="text-sm text-slate-500">Ongoing</p>
+            <h2 className="mt-2 text-3xl font-black text-sky-600">{stats.ongoing}</h2>
+          </div>
+          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+            <p className="text-sm text-slate-500">Closed</p>
+            <h2 className="mt-2 text-3xl font-black text-emerald-600">{stats.closed}</h2>
+          </div>
+        </section>
+
+        <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 md:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Browse cases</h2>
+              <p className="text-sm text-slate-500">
+                Search by title, case number, category, client, or lawyer.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 md:flex-row">
+              <input
+                className="input input-bordered w-full md:w-80"
+                type="text"
+                placeholder="Search cases..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+
+              <select
+                className="select select-bordered w-full md:w-48"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {loading ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-slate-500">
+                Loading cases...
+              </div>
+            ) : null}
+
+            {!loading && error ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-6 py-10 text-center text-red-600">
+                {error}
+              </div>
+            ) : null}
+
+            {!loading && !error && filteredCases.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                <h3 className="text-lg font-bold text-slate-900">No cases found</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  Try a different search term or change the selected status filter.
+                </p>
+              </div>
+            ) : null}
+
+            {!loading && !error && filteredCases.length > 0 ? (
+              <div className="grid gap-5 lg:grid-cols-2">
+                {filteredCases.map((item) => (
+                  <article
+                    key={item._id}
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                          {item.caseNumber || "No case number"}
+                        </p>
+                        <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                          {item.title || "Untitled case"}
+                        </h3>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                            statusStyles[item.status] || "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {item.status || "unknown"}
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                            priorityStyles[item.priority] || "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {item.priority || "medium"} priority
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-sm text-slate-600">
+                      {item.description || "No case summary available yet."}
+                    </p>
+
+                    <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
+                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Category
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {item.category || "Not added"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Client
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {item.client?.name || "Not added"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Lawyer
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {item.lawyer?.name || "Not assigned"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Timeline events
+                        </p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {item.timeline?.length || 0}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                        Matter overview
+                      </p>
+                      <Link
+                        to={`/case/${item._id}`}
+                        className="btn btn-sm bg-slate-900 text-white hover:bg-slate-800"
+                      >
+                        View Details
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
 };
 
 export default Cases;
