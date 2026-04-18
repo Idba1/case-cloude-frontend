@@ -14,12 +14,36 @@ const priorityStyles = {
   high: "bg-rose-100 text-rose-700",
 };
 
+const STATUS_HISTORY_KEY = "case-status-history";
+
 const CaseDetails = () => {
   const { id } = useParams();
   const [caseData, setCaseData] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
+  const [statusHistory, setStatusHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const readStoredStatusHistory = (caseId) => {
+    try {
+      const rawHistory = localStorage.getItem(STATUS_HISTORY_KEY);
+      const parsedHistory = rawHistory ? JSON.parse(rawHistory) : {};
+      return Array.isArray(parsedHistory[caseId]) ? parsedHistory[caseId] : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const writeStoredStatusHistory = (caseId, history) => {
+    try {
+      const rawHistory = localStorage.getItem(STATUS_HISTORY_KEY);
+      const parsedHistory = rawHistory ? JSON.parse(rawHistory) : {};
+      parsedHistory[caseId] = history;
+      localStorage.setItem(STATUS_HISTORY_KEY, JSON.stringify(parsedHistory));
+    } catch {
+      // Ignore storage issues so the page still works without local persistence.
+    }
+  };
 
   useEffect(() => {
     const fetchCase = async () => {
@@ -85,6 +109,31 @@ const CaseDetails = () => {
     fetchClientHistory();
   }, [caseData]);
 
+  useEffect(() => {
+    if (!caseData?._id) {
+      setStatusHistory([]);
+      return;
+    }
+
+    const storedHistory = readStoredStatusHistory(caseData._id);
+
+    if (storedHistory.length) {
+      setStatusHistory(storedHistory);
+      return;
+    }
+
+    const initialHistory = [
+      {
+        status: caseData.status || "pending",
+        note: "Initial case status recorded",
+        changedAt: caseData.dates?.updatedAt || caseData.dates?.createdAt || new Date().toISOString(),
+      },
+    ];
+
+    setStatusHistory(initialHistory);
+    writeStoredStatusHistory(caseData._id, initialHistory);
+  }, [caseData]);
+
   if (loading) {
     return (
       <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -114,6 +163,27 @@ const CaseDetails = () => {
       </div>
     );
   }
+
+  const handleStatusUpdate = (nextStatus) => {
+    const historyEntry = {
+      status: nextStatus,
+      note: `Status changed from ${caseData.status || "unknown"} to ${nextStatus}`,
+      changedAt: new Date().toISOString(),
+    };
+
+    const nextHistory = [historyEntry, ...statusHistory];
+
+    setCaseData((current) => ({
+      ...current,
+      status: nextStatus,
+      dates: {
+        ...current.dates,
+        updatedAt: historyEntry.changedAt,
+      },
+    }));
+    setStatusHistory(nextHistory);
+    writeStoredStatusHistory(caseData._id, nextHistory);
+  };
 
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -251,10 +321,71 @@ const CaseDetails = () => {
             <UpdateCase
               id={id}
               initialStatus={caseData.status}
-              onUpdated={(nextStatus) =>
-                setCaseData((current) => ({ ...current, status: nextStatus }))
-              }
+              onUpdated={handleStatusUpdate}
             />
+
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Status tracking</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Follow the case progress and review the latest status activity.
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                    statusStyles[caseData.status] || "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {caseData.status || "unknown"}
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {["pending", "ongoing", "closed"].map((status) => {
+                  const isCurrent = caseData.status === status;
+
+                  return (
+                    <div
+                      key={status}
+                      className={`rounded-2xl border px-4 py-4 text-center ${
+                        isCurrent
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      <p className="text-xs uppercase tracking-[0.2em]">
+                        {isCurrent ? "Current" : "Stage"}
+                      </p>
+                      <p className="mt-2 text-sm font-semibold capitalize">{status}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {statusHistory.map((item, index) => (
+                  <div
+                    key={`${item.changedAt}-${index}`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                          statusStyles[item.status] || "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                        {new Date(item.changedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-600">{item.note}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <h2 className="text-xl font-bold text-slate-900">Client information</h2>
