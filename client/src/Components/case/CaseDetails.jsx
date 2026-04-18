@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import DeleteCaseButton from "./DeleteCaseButton";
 import UpdateCase from "./UpdateCase";
+import { AuthContext } from "../../Provider/AuthProvider";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -17,17 +18,26 @@ const priorityStyles = {
 };
 
 const STATUS_HISTORY_KEY = "case-status-history";
+const requestStyles = {
+  pending_review: "bg-amber-100 text-amber-700",
+  approved: "bg-emerald-100 text-emerald-700",
+  rejected: "bg-rose-100 text-rose-700",
+};
 
 const CaseDetails = () => {
+  const { appUser } = useContext(AuthContext);
   const { id } = useParams();
   const navigate = useNavigate();
   const [caseData, setCaseData] = useState(null);
   const [clientHistory, setClientHistory] = useState([]);
   const [statusHistory, setStatusHistory] = useState([]);
+  const [assignment, setAssignment] = useState({ name: "", email: "" });
   const [noteText, setNoteText] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const isClient = appUser?.role === "client";
+  const canReviewRequest = appUser?.role === "lawyer" || appUser?.role === "admin";
 
   const readStoredStatusHistory = (caseId) => {
     try {
@@ -64,6 +74,10 @@ const CaseDetails = () => {
 
         const data = await response.json();
         setCaseData(data);
+        setAssignment({
+          name: data.lawyer?.name || "",
+          email: data.lawyer?.email || "",
+        });
       } catch (fetchError) {
         setError(fetchError.message || "Could not load case details.");
       } finally {
@@ -379,6 +393,38 @@ const CaseDetails = () => {
     toast.success("Case report generated.");
   };
 
+  const handleRequestDecision = async (nextRequestStatus) => {
+    if (nextRequestStatus === "approved" && (!assignment.name.trim() || !assignment.email.trim())) {
+      toast.error("Assign a lawyer name and email before approving.");
+      return;
+    }
+
+    const updatedCase = {
+      ...caseData,
+      requestStatus: nextRequestStatus,
+      lawyer:
+        nextRequestStatus === "approved"
+          ? { name: assignment.name.trim(), email: assignment.email.trim() }
+          : caseData.lawyer,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await persistCaseUpdate(
+        updatedCase,
+        nextRequestStatus === "approved"
+          ? "Case request approved."
+          : "Case request rejected."
+      );
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not update the request status.");
+    }
+  };
+
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -392,18 +438,22 @@ const CaseDetails = () => {
                 >
                   Back to cases
                 </Link>
-                <Link
-                  to={`/case/${id}/edit`}
-                  className="btn btn-sm border-0 bg-white text-slate-900 hover:bg-slate-100"
-                >
-                  Edit Case
-                </Link>
-                <DeleteCaseButton
-                  caseId={id}
-                  caseTitle={caseData?.title}
-                  className="btn btn-sm border-0 bg-red-500 text-white hover:bg-red-600"
-                  onDeleted={() => navigate("/cases")}
-                />
+                {!isClient ? (
+                  <Link
+                    to={`/case/${id}/edit`}
+                    className="btn btn-sm border-0 bg-white text-slate-900 hover:bg-slate-100"
+                  >
+                    Edit Case
+                  </Link>
+                ) : null}
+                {!isClient ? (
+                  <DeleteCaseButton
+                    caseId={id}
+                    caseTitle={caseData?.title}
+                    className="btn btn-sm border-0 bg-red-500 text-white hover:bg-red-600"
+                    onDeleted={() => navigate("/cases")}
+                  />
+                ) : null}
                 <button
                   type="button"
                   className="btn btn-sm border-0 bg-cyan-500 text-white hover:bg-cyan-600"
@@ -438,6 +488,13 @@ const CaseDetails = () => {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              <span
+                className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${
+                  requestStyles[caseData.requestStatus] || "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {(caseData.requestStatus || "approved").replace("_", " ")}
+              </span>
               <span
                 className={`rounded-full px-4 py-2 text-sm font-semibold capitalize ${
                   statusStyles[caseData.status] || "bg-slate-100 text-slate-700"
@@ -619,11 +676,70 @@ const CaseDetails = () => {
           </div>
 
           <div className="space-y-6">
-            <UpdateCase
-              id={id}
-              initialStatus={caseData.status}
-              onUpdated={handleStatusUpdate}
-            />
+            {canReviewRequest && caseData.requestStatus === "pending_review" ? (
+              <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+                <h2 className="text-xl font-bold text-slate-900">Review case request</h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  This client-submitted case is pending review. Assign a lawyer and
+                  approve it if the request is valid.
+                </p>
+
+                <div className="mt-5 grid gap-4">
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">
+                      Assign Lawyer Name
+                    </span>
+                    <input
+                      className="input input-bordered w-full"
+                      value={assignment.name}
+                      onChange={(e) =>
+                        setAssignment((current) => ({ ...current, name: e.target.value }))
+                      }
+                      placeholder="Assigned lawyer name"
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">
+                      Assign Lawyer Email
+                    </span>
+                    <input
+                      className="input input-bordered w-full"
+                      type="email"
+                      value={assignment.email}
+                      onChange={(e) =>
+                        setAssignment((current) => ({ ...current, email: e.target.value }))
+                      }
+                      placeholder="lawyer@example.com"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    className="btn bg-emerald-600 text-white hover:bg-emerald-700"
+                    onClick={() => handleRequestDecision("approved")}
+                  >
+                    Approve and Assign
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-error"
+                    onClick={() => handleRequestDecision("rejected")}
+                  >
+                    Reject Request
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!isClient ? (
+              <UpdateCase
+                id={id}
+                initialStatus={caseData.status}
+                onUpdated={handleStatusUpdate}
+              />
+            ) : null}
 
             <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-center justify-between gap-3">
@@ -776,13 +892,17 @@ const CaseDetails = () => {
                 <div className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Name</p>
                   <p className="mt-2 font-semibold text-slate-900">
-                    {caseData.lawyer?.name || "Not assigned"}
+                    {caseData.requestStatus === "pending_review"
+                      ? "Will be assigned after approval"
+                      : caseData.lawyer?.name || "Not assigned"}
                   </p>
                 </div>
                 <div className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
                   <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Email</p>
                   <p className="mt-2 font-semibold text-slate-900">
-                    {caseData.lawyer?.email || "Not added"}
+                    {caseData.requestStatus === "pending_review"
+                      ? "Will be assigned after approval"
+                      : caseData.lawyer?.email || "Not added"}
                   </p>
                 </div>
               </div>

@@ -5,7 +5,15 @@ import { AuthContext } from "../../Provider/AuthProvider"
 
 const Registration = () => {
   const navigate = useNavigate()
-  const { signInWithGoogle, createUser, updateUserProfile, user, setUser } = useContext(AuthContext)
+  const {
+    signInWithGoogle,
+    createUser,
+    updateUserProfile,
+    user,
+    setUser,
+    setAppUser,
+    syncUserProfile,
+  } = useContext(AuthContext)
 
   const handleSignUp = async e => {
     e.preventDefault()
@@ -13,8 +21,9 @@ const Registration = () => {
     const email = form.email.value
     const name = form.name.value
     const photo = form.photo.value
+    const role = form.role.value
     const pass = form.password.value
-    console.log({ email, pass, name, photo })
+    console.log({ email, pass, name, photo, role })
     try {
 
       //User Registration
@@ -22,7 +31,15 @@ const Registration = () => {
       console.log(result)
       await updateUserProfile(name, photo)
       setUser({ ...user, photoURL: photo, displayName: name })
-      navigate('/')
+      const profile = {
+        name,
+        email,
+        photo,
+        role,
+      }
+      await syncUserProfile(profile)
+      setAppUser(profile)
+      navigate('/cases')
       toast.success('Signup Successful')
     } catch (err) {
       console.log(err)
@@ -33,9 +50,17 @@ const Registration = () => {
   // Google 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithGoogle()
+      const result = await signInWithGoogle()
+      const profile = {
+        name: result.user.displayName || 'CaseCloud User',
+        email: result.user.email,
+        photo: result.user.photoURL || '',
+        role: 'client',
+      }
+      await syncUserProfile(profile)
+      setAppUser(profile)
       toast.success('Signin Successful')
-      navigate('/')
+      navigate('/cases')
     } catch (err) {
       console.log(err)
       toast.error(err?.message)
@@ -138,6 +163,24 @@ const Registration = () => {
                 className='block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg    focus:border-blue-400 focus:ring-opacity-40  focus:outline-none focus:ring focus:ring-blue-300'
                 type='email'
               />
+            </div>
+            <div className='mt-4'>
+              <label
+                className='block mb-2 text-sm font-medium text-gray-600 '
+                htmlFor='role'
+              >
+                Select Role
+              </label>
+              <select
+                id='role'
+                name='role'
+                defaultValue='client'
+                className='block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg focus:border-blue-400 focus:ring-opacity-40 focus:outline-none focus:ring focus:ring-blue-300'
+              >
+                <option value='client'>Client</option>
+                <option value='lawyer'>Lawyer</option>
+                <option value='assistant'>Assistant</option>
+              </select>
             </div>
 
             <div className='mt-4'>

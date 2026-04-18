@@ -23,6 +23,7 @@ const client = new MongoClient(uri, {
 });
 
 let casesCollection;
+let usersCollection;
 
 async function run() {
     try {
@@ -30,6 +31,7 @@ async function run() {
 
         const db = client.db("casecloud");
         casesCollection = db.collection("cases");
+        usersCollection = db.collection("users");
 
         console.log("MongoDB Connected");
     } catch (err) {
@@ -44,6 +46,61 @@ run();
 // create case
 app.post("/case", async (req, res) => {
     const result = await casesCollection.insertOne(req.body);
+    res.send(result);
+});
+
+// create or update user profile
+app.post("/users", async (req, res) => {
+    const { email, ...rest } = req.body;
+
+    if (!email) {
+        return res.status(400).send({ message: "Email is required" });
+    }
+
+    const result = await usersCollection.updateOne(
+        { email },
+        {
+            $set: {
+                email,
+                ...rest,
+                updatedAt: new Date().toISOString(),
+            },
+            $setOnInsert: {
+                createdAt: new Date().toISOString(),
+            },
+        },
+        { upsert: true }
+    );
+
+    res.send(result);
+});
+
+// get user profile by email
+app.get("/users/:email", async (req, res) => {
+    const email = req.params.email;
+    const result = await usersCollection.findOne({ email });
+    res.send(result || null);
+});
+
+// update user role
+app.patch("/users/role/:email", async (req, res) => {
+    const email = req.params.email;
+    const { role } = req.body;
+
+    if (!role) {
+        return res.status(400).send({ message: "Role is required" });
+    }
+
+    const result = await usersCollection.updateOne(
+        { email },
+        {
+            $set: {
+                role,
+                updatedAt: new Date().toISOString(),
+            },
+        }
+    );
+
     res.send(result);
 });
 

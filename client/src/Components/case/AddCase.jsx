@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import { AuthContext } from "../../Provider/AuthProvider";
 
 const initialDocument = { name: "", fileUrl: "" };
 const initialTimeline = { date: "", event: "" };
@@ -23,6 +24,7 @@ const steps = [
 ];
 
 const AddCase = () => {
+  const { appUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,6 +32,7 @@ const AddCase = () => {
   const [documents, setDocuments] = useState([{ ...initialDocument }]);
   const [timeline, setTimeline] = useState([{ ...initialTimeline }]);
   const [errors, setErrors] = useState({});
+  const isClient = appUser?.role === "client";
 
   const validateStep = (currentStep = step) => {
     const nextErrors = {};
@@ -44,8 +47,8 @@ const AddCase = () => {
     if (currentStep === 2) {
       if (!formData.client.name.trim()) nextErrors.clientName = "Client name is required.";
       if (!formData.client.email.trim()) nextErrors.clientEmail = "Client email is required.";
-      if (!formData.lawyer.name.trim()) nextErrors.lawyerName = "Lawyer name is required.";
-      if (!formData.lawyer.email.trim()) nextErrors.lawyerEmail = "Lawyer email is required.";
+      if (!isClient && !formData.lawyer.name.trim()) nextErrors.lawyerName = "Lawyer name is required.";
+      if (!isClient && !formData.lawyer.email.trim()) nextErrors.lawyerEmail = "Lawyer email is required.";
     }
 
     if (currentStep === 3) {
@@ -128,6 +131,12 @@ const AddCase = () => {
       notes: [],
       appointments: [],
       notifications: [],
+      requestStatus: isClient ? "pending_review" : "approved",
+      requestedBy: {
+        name: appUser?.name || appUser?.displayName || formData.client.name,
+        email: appUser?.email || formData.client.email,
+        role: appUser?.role || "client",
+      },
     };
 
     setIsSubmitting(true);
@@ -143,7 +152,11 @@ const AddCase = () => {
         throw new Error("Failed to create the case.");
       }
 
-      toast.success("Case created successfully.");
+      toast.success(
+        isClient
+          ? "Case request submitted. It is now pending review."
+          : "Case created successfully."
+      );
       setFormData(createInitialFormData());
       setDocuments([{ ...initialDocument }]);
       setTimeline([{ ...initialTimeline }]);
@@ -202,8 +215,9 @@ const AddCase = () => {
           </p>
           <h1 className="text-3xl font-black md:text-4xl">Create a new legal case</h1>
           <p className="mt-3 max-w-2xl text-sm text-slate-200 md:text-base">
-            Capture the essential case details first, then attach people, documents,
-            and timeline notes so the matter is ready to track from day one.
+            {isClient
+              ? "Submit your case request with the essential details. A lawyer or admin will review, assign, and approve it before full processing."
+              : "Capture the essential case details first, then attach people, documents, and timeline notes so the matter is ready to track from day one."}
           </p>
         </div>
 
@@ -336,7 +350,9 @@ const AddCase = () => {
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900">Client and lawyer</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      Keep the key contacts together so follow-up is easier later.
+                      {isClient
+                        ? "Add your contact details. Lawyer assignment will be completed after review."
+                        : "Keep the key contacts together so follow-up is easier later."}
                     </p>
                   </div>
 
@@ -384,31 +400,41 @@ const AddCase = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                    <h3 className="text-lg font-bold text-slate-900">Assigned lawyer</h3>
-                    <div className="mt-4 grid gap-5 md:grid-cols-2">
-                      {renderInput({
-                        label: "Lawyer Name",
-                        name: "lawyerName",
-                        value: formData.lawyer.name,
-                        placeholder: "Assigned lawyer name",
-                        onChange: (e) =>
-                          handleNestedChange("lawyer", "name", e.target.value),
-                        error: errors.lawyerName,
-                      })}
-
-                      {renderInput({
-                        label: "Lawyer Email",
-                        name: "lawyerEmail",
-                        type: "email",
-                        value: formData.lawyer.email,
-                        placeholder: "lawyer@example.com",
-                        onChange: (e) =>
-                          handleNestedChange("lawyer", "email", e.target.value),
-                        error: errors.lawyerEmail,
-                      })}
+                  {isClient ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                      <h3 className="text-lg font-bold text-slate-900">Approval workflow</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">
+                        Your request will stay in pending review until a lawyer or admin
+                        assigns the responsible lawyer and approves the case.
+                      </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                      <h3 className="text-lg font-bold text-slate-900">Assigned lawyer</h3>
+                      <div className="mt-4 grid gap-5 md:grid-cols-2">
+                        {renderInput({
+                          label: "Lawyer Name",
+                          name: "lawyerName",
+                          value: formData.lawyer.name,
+                          placeholder: "Assigned lawyer name",
+                          onChange: (e) =>
+                            handleNestedChange("lawyer", "name", e.target.value),
+                          error: errors.lawyerName,
+                        })}
+
+                        {renderInput({
+                          label: "Lawyer Email",
+                          name: "lawyerEmail",
+                          type: "email",
+                          value: formData.lawyer.email,
+                          placeholder: "lawyer@example.com",
+                          onChange: (e) =>
+                            handleNestedChange("lawyer", "email", e.target.value),
+                          error: errors.lawyerEmail,
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </section>
               ) : null}
 
@@ -590,7 +616,13 @@ const AddCase = () => {
                       className="btn bg-slate-900 text-white hover:bg-slate-800"
                       disabled={isSubmitting}
                     >
-                      {isSubmitting ? "Creating..." : "Create Case"}
+                      {isSubmitting
+                        ? isClient
+                          ? "Submitting..."
+                          : "Creating..."
+                        : isClient
+                        ? "Submit Case Request"
+                        : "Create Case"}
                     </button>
                   )}
                 </div>

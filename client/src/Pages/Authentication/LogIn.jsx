@@ -4,16 +4,23 @@ import { AuthContext } from "../../Provider/AuthProvider"
 import toast from "react-hot-toast";
 
 const Login = () => {
-    const { signIn, signInWithGoogle, } = useContext(AuthContext);
+    const { signIn, signInWithGoogle, loadUserProfile, setAppUser } = useContext(AuthContext);
     const navigate = useNavigate()
 
 
     // google login
     const handleGooleSignIn = async () => {
         try {
-            await signInWithGoogle()
+            const result = await signInWithGoogle()
+            const existingProfile = await loadUserProfile(result.user.email)
+            setAppUser(existingProfile || {
+                name: result.user.displayName || 'CaseCloud User',
+                email: result.user.email,
+                photo: result.user.photoURL || '',
+                role: 'client',
+            })
             toast.success('Sign in successfully!')
-            navigate('/')
+            navigate('/cases')
         } catch (error) {
             console.log(error)
             toast.error(error?.message)
@@ -31,7 +38,14 @@ const Login = () => {
             //User Login
             const result = await signIn(email, pass)
             console.log(result)
-            navigate('/')
+            const existingProfile = await loadUserProfile(email)
+            setAppUser(existingProfile || {
+                name: result.user.displayName || 'CaseCloud User',
+                email,
+                photo: result.user.photoURL || '',
+                role: 'client',
+            })
+            navigate('/cases')
             toast.success('Signin Successful')
         } catch (err) {
             console.log(err)

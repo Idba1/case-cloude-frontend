@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DeleteCaseButton from "./DeleteCaseButton";
+import { AuthContext } from "../../Provider/AuthProvider";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -26,7 +27,14 @@ const priorityRank = {
   low: 3,
 };
 
+const requestStyles = {
+  pending_review: "bg-amber-50 text-amber-700 border border-amber-200",
+  approved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  rejected: "bg-rose-50 text-rose-700 border border-rose-200",
+};
+
 const Cases = () => {
+  const { appUser, loading: authLoading } = useContext(AuthContext);
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -34,6 +42,7 @@ const Cases = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [lawyerView, setLawyerView] = useState("all");
 
   useEffect(() => {
     const fetchCases = async () => {
@@ -60,15 +69,30 @@ const Cases = () => {
   }, []);
 
   const normalizedSearch = searchText.trim().toLowerCase();
+  const role = appUser?.role || "client";
+  const userEmail = appUser?.email?.toLowerCase() || "";
+
+  const visibleCases = cases.filter((item) => {
+    if (role === "client") {
+      return item.client?.email?.toLowerCase() === userEmail;
+    }
+
+    if (role === "lawyer" && lawyerView === "mine") {
+      return item.lawyer?.email?.toLowerCase() === userEmail;
+    }
+
+    return true;
+  });
+
   const clientOptions = Array.from(
     new Set(
-      cases
+      visibleCases
         .map((item) => item.client?.name?.trim())
         .filter(Boolean)
     )
   ).sort((firstClient, secondClient) => firstClient.localeCompare(secondClient));
 
-  const filteredCases = cases
+  const filteredCases = visibleCases
     .filter((item) => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       const matchesClient =
@@ -115,15 +139,25 @@ const Cases = () => {
     });
 
   const stats = {
-    total: cases.length,
-    pending: cases.filter((item) => item.status === "pending").length,
-    ongoing: cases.filter((item) => item.status === "ongoing").length,
-    closed: cases.filter((item) => item.status === "closed").length,
+    total: visibleCases.length,
+    pending: visibleCases.filter((item) => item.status === "pending").length,
+    ongoing: visibleCases.filter((item) => item.status === "ongoing").length,
+    closed: visibleCases.filter((item) => item.status === "closed").length,
   };
 
   const handleCaseDeleted = (deletedId) => {
     setCases((current) => current.filter((item) => item._id !== deletedId));
   };
+
+  if (authLoading) {
+    return (
+      <div className="bg-slate-100 px-4 py-8 md:px-8">
+        <div className="mx-auto max-w-7xl rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-500">
+          Loading dashboard...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -135,20 +169,25 @@ const Cases = () => {
                 Case Dashboard
               </p>
               <h1 className="mt-2 text-3xl font-black md:text-4xl">
-                Manage your matters from one place
+                {role === "client"
+                  ? "Your case dashboard"
+                  : "Manage your matters from one place"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm text-slate-200 md:text-base">
-                Track every case, monitor status distribution, and jump straight into
-                the matter that needs attention next.
+                {role === "client"
+                  ? "Review only the cases assigned to you, follow status updates, and open the details you need."
+                  : "Track every case, monitor status distribution, and jump straight into the matter that needs attention next."}
               </p>
             </div>
 
-            <Link
-              to="/add-case"
-              className="btn border-0 bg-white text-slate-900 hover:bg-slate-100"
-            >
-              Add New Case
-            </Link>
+            {role !== "client" ? (
+              <Link
+                to="/add-case"
+                className="btn border-0 bg-white text-slate-900 hover:bg-slate-100"
+              >
+                Add New Case
+              </Link>
+            ) : null}
           </div>
         </section>
 
@@ -176,7 +215,9 @@ const Cases = () => {
             <div>
               <h2 className="text-xl font-bold text-slate-900">Browse cases</h2>
               <p className="text-sm text-slate-500">
-                Search by title, case number, category, client, or lawyer.
+                {role === "client"
+                  ? "Search through your assigned cases by title, case number, category, or lawyer."
+                  : "Search by title, case number, category, client, or lawyer."}
               </p>
             </div>
 
@@ -222,6 +263,17 @@ const Cases = () => {
                 <option value="status">Sort: Status</option>
                 <option value="priority">Sort: Priority</option>
               </select>
+
+              {role === "lawyer" ? (
+                <select
+                  className="select select-bordered w-full md:w-52"
+                  value={lawyerView}
+                  onChange={(e) => setLawyerView(e.target.value)}
+                >
+                  <option value="all">All Cases</option>
+                  <option value="mine">My Assigned Cases</option>
+                </select>
+              ) : null}
             </div>
           </div>
 
@@ -265,6 +317,14 @@ const Cases = () => {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                            requestStyles[item.requestStatus] ||
+                            "bg-slate-100 text-slate-700 border border-slate-200"
+                          }`}
+                        >
+                          {(item.requestStatus || "approved").replace("_", " ")}
+                        </span>
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
                             statusStyles[item.status] || "bg-slate-100 text-slate-700"
@@ -326,18 +386,22 @@ const Cases = () => {
                         Matter overview
                       </p>
                       <div className="flex gap-2">
-                        <DeleteCaseButton
-                          caseId={item._id}
-                          caseTitle={item.title}
-                          className="btn btn-sm btn-outline btn-error"
-                          onDeleted={() => handleCaseDeleted(item._id)}
-                        />
-                        <Link
-                          to={`/case/${item._id}/edit`}
-                          className="btn btn-sm btn-outline"
-                        >
-                          Edit
-                        </Link>
+                        {role !== "client" ? (
+                          <>
+                            <DeleteCaseButton
+                              caseId={item._id}
+                              caseTitle={item.title}
+                              className="btn btn-sm btn-outline btn-error"
+                              onDeleted={() => handleCaseDeleted(item._id)}
+                            />
+                            <Link
+                              to={`/case/${item._id}/edit`}
+                              className="btn btn-sm btn-outline"
+                            >
+                              Edit
+                            </Link>
+                          </>
+                        ) : null}
                         <Link
                           to={`/case/${item._id}`}
                           className="btn btn-sm bg-slate-900 text-white hover:bg-slate-800"

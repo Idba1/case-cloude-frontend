@@ -3,7 +3,10 @@ import { AuthContext } from "../Provider/AuthProvider";
 import { Link } from "react-router-dom";
 
 const Navbar = () => {
-    const { user, logOut } = useContext(AuthContext);
+    const { user, appUser, logOut } = useContext(AuthContext);
+    const roleLabel = appUser?.role
+        ? `${appUser.role.charAt(0).toUpperCase()}${appUser.role.slice(1)}`
+        : 'User';
 
     return (
         <div className="border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -69,6 +72,9 @@ const Navbar = () => {
                                             {user?.displayName || "CaseCloud User"}
                                         </span>
                                         <span className="text-xs text-slate-500">{user?.email}</span>
+                                        <span className="mt-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600">
+                                            {roleLabel}
+                                        </span>
                                     </div>
                                 </li>
                                 <li>
