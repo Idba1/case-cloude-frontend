@@ -17,6 +17,7 @@ const priorityStyles = {
 const CaseDetails = () => {
   const { id } = useParams();
   const [caseData, setCaseData] = useState(null);
+  const [clientHistory, setClientHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -43,6 +44,46 @@ const CaseDetails = () => {
 
     fetchCase();
   }, [id]);
+
+  useEffect(() => {
+    const fetchClientHistory = async () => {
+      if (!caseData?.client?.email && !caseData?.client?.name) {
+        setClientHistory([]);
+        return;
+      }
+
+      try {
+        const response = await fetch("http://localhost:5000/cases");
+
+        if (!response.ok) {
+          throw new Error("Failed to load client history.");
+        }
+
+        const allCases = await response.json();
+        const relatedCases = (Array.isArray(allCases) ? allCases : []).filter((item) => {
+          if (item._id === caseData._id) return false;
+
+          const sameEmail =
+            caseData.client?.email &&
+            item.client?.email &&
+            item.client.email.toLowerCase() === caseData.client.email.toLowerCase();
+
+          const sameName =
+            caseData.client?.name &&
+            item.client?.name &&
+            item.client.name.toLowerCase() === caseData.client.name.toLowerCase();
+
+          return sameEmail || sameName;
+        });
+
+        setClientHistory(relatedCases);
+      } catch {
+        setClientHistory([]);
+      }
+    };
+
+    fetchClientHistory();
+  }, [caseData]);
 
   if (loading) {
     return (
@@ -242,6 +283,58 @@ const CaseDetails = () => {
                     {caseData.client?.address || "Not added"}
                   </p>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Client history</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Other matters connected to this client.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {clientHistory.length} related case{clientHistory.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {clientHistory.length ? (
+                  clientHistory.map((item) => (
+                    <Link
+                      key={item._id}
+                      to={`/case/${item._id}`}
+                      className="block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300 hover:bg-white"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            {item.caseNumber || "No case number"}
+                          </p>
+                          <h3 className="mt-2 font-semibold text-slate-900">
+                            {item.title || "Untitled case"}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {item.category || "No category"}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                            statusStyles[item.status] || "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {item.status || "unknown"}
+                        </span>
+                      </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-slate-500">
+                    No other case history found for this client yet.
+                  </div>
+                )}
               </div>
             </div>
 
