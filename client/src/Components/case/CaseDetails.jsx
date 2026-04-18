@@ -187,6 +187,34 @@ const CaseDetails = () => {
     writeStoredStatusHistory(caseData._id, nextHistory);
   };
 
+  const handlePrintCase = () => {
+    window.print();
+  };
+
+  const handleExportCase = () => {
+    const exportPayload = {
+      ...caseData,
+      exportedAt: new Date().toISOString(),
+      statusHistory,
+      clientHistory,
+    };
+
+    const exportBlob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+      type: "application/json",
+    });
+    const downloadUrl = URL.createObjectURL(exportBlob);
+    const downloadLink = document.createElement("a");
+    const sanitizedTitle = (caseData.title || "case-details")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    downloadLink.href = downloadUrl;
+    downloadLink.download = `${sanitizedTitle || "case-details"}.json`;
+    downloadLink.click();
+    URL.revokeObjectURL(downloadUrl);
+  };
+
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
@@ -212,6 +240,20 @@ const CaseDetails = () => {
                   className="btn btn-sm border-0 bg-red-500 text-white hover:bg-red-600"
                   onDeleted={() => navigate("/")}
                 />
+                <button
+                  type="button"
+                  className="btn btn-sm border-0 bg-cyan-500 text-white hover:bg-cyan-600"
+                  onClick={handleExportCase}
+                >
+                  Export Case
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm border border-white/30 bg-transparent text-white hover:bg-white hover:text-slate-900"
+                  onClick={handlePrintCase}
+                >
+                  Print Case
+                </button>
               </div>
               <p className="mt-4 text-xs uppercase tracking-[0.25em] text-slate-300">
                 {caseData.caseNumber || "No case number"}

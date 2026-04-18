@@ -32,6 +32,7 @@ const Cases = () => {
   const [error, setError] = useState("");
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
 
   useEffect(() => {
@@ -59,9 +60,19 @@ const Cases = () => {
   }, []);
 
   const normalizedSearch = searchText.trim().toLowerCase();
+  const clientOptions = Array.from(
+    new Set(
+      cases
+        .map((item) => item.client?.name?.trim())
+        .filter(Boolean)
+    )
+  ).sort((firstClient, secondClient) => firstClient.localeCompare(secondClient));
+
   const filteredCases = cases
     .filter((item) => {
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      const matchesClient =
+        clientFilter === "all" || item.client?.name?.trim() === clientFilter;
       const searchableText = [
         item.title,
         item.caseNumber,
@@ -76,7 +87,7 @@ const Cases = () => {
       const matchesSearch =
         !normalizedSearch || searchableText.includes(normalizedSearch);
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesClient && matchesSearch;
     })
     .sort((firstCase, secondCase) => {
       if (sortBy === "status") {
@@ -187,6 +198,19 @@ const Cases = () => {
                 <option value="pending">Pending</option>
                 <option value="ongoing">Ongoing</option>
                 <option value="closed">Closed</option>
+              </select>
+
+              <select
+                className="select select-bordered w-full md:w-56"
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+              >
+                <option value="all">All Clients</option>
+                {clientOptions.map((clientName) => (
+                  <option key={clientName} value={clientName}>
+                    {clientName}
+                  </option>
+                ))}
               </select>
 
               <select
