@@ -29,6 +29,22 @@ const requestStyles = {
   rejected: "bg-rose-100 text-rose-700",
 };
 
+const appointmentStatusStyles = {
+  scheduled: "bg-sky-100 text-sky-700",
+  completed: "bg-emerald-100 text-emerald-700",
+  cancelled: "bg-rose-100 text-rose-700",
+};
+
+const createInitialAppointment = () => ({
+  title: "",
+  date: "",
+  time: "",
+  location: "",
+  type: "consultation",
+  status: "scheduled",
+  notes: "",
+});
+
 const CaseDetails = () => {
   const { appUser } = useContext(AuthContext);
   const { id } = useParams();
@@ -39,6 +55,8 @@ const CaseDetails = () => {
   const [assignment, setAssignment] = useState({ name: "", email: "" });
   const [noteText, setNoteText] = useState("");
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [appointmentForm, setAppointmentForm] = useState(createInitialAppointment());
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const isClient = appUser?.role === "client";
@@ -422,6 +440,104 @@ const CaseDetails = () => {
     }
   };
 
+  const handleAppointmentFormChange = (field, value) => {
+    setAppointmentForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleAddAppointment = async () => {
+    if (!appointmentForm.title.trim() || !appointmentForm.date || !appointmentForm.time) {
+      toast.error("Appointment title, date, and time are required.");
+      return;
+    }
+
+    const nextAppointments = [
+      {
+        id:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `appointment-${Date.now()}`,
+        ...appointmentForm,
+        createdAt: new Date().toISOString(),
+      },
+      ...(Array.isArray(caseData.appointments) ? caseData.appointments : []),
+    ];
+
+    const updatedCase = {
+      ...caseData,
+      appointments: nextAppointments,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    setIsSavingAppointment(true);
+
+    try {
+      await persistCaseUpdate(updatedCase, "Appointment scheduled.");
+      setCaseData(updatedCase);
+      setAppointmentForm(createInitialAppointment());
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not schedule the appointment.");
+    } finally {
+      setIsSavingAppointment(false);
+    }
+  };
+
+  const handleAppointmentStatusChange = async (appointmentId, nextStatus) => {
+    const nextAppointments = (Array.isArray(caseData.appointments) ? caseData.appointments : []).map(
+      (item) =>
+        item.id === appointmentId
+          ? {
+              ...item,
+              status: nextStatus,
+              updatedAt: new Date().toISOString(),
+            }
+          : item
+    );
+
+    const updatedCase = {
+      ...caseData,
+      appointments: nextAppointments,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await persistCaseUpdate(updatedCase, "Appointment updated.");
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not update the appointment.");
+    }
+  };
+
+  const handleDeleteAppointment = async (appointmentId) => {
+    const nextAppointments = (Array.isArray(caseData.appointments) ? caseData.appointments : []).filter(
+      (item) => item.id !== appointmentId
+    );
+
+    const updatedCase = {
+      ...caseData,
+      appointments: nextAppointments,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await persistCaseUpdate(updatedCase, "Appointment removed.");
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not remove the appointment.");
+    }
+  };
+
   const handleDownloadAllFiles = () => {
     const uploadedDocuments = (caseData.documents || []).filter(
       (item) => item.storageType === "upload" && item.fileUrl
@@ -475,6 +591,13 @@ const CaseDetails = () => {
       toast.error(saveError.message || "Could not update the request status.");
     }
   };
+
+  const sortedAppointments = [...(caseData.appointments || [])].sort((firstItem, secondItem) => {
+    const firstDate = new Date(`${firstItem.date || ""}T${firstItem.time || "00:00"}`).getTime();
+    const secondDate = new Date(`${secondItem.date || ""}T${secondItem.time || "00:00"}`).getTime();
+
+    return firstDate - secondDate;
+  });
 
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -958,6 +1081,167 @@ const CaseDetails = () => {
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-slate-500">
                     No other case history found for this client yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Appointments</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Schedule hearings, consultations, follow-ups, and internal meetings.
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {sortedAppointments.length} appointment{sortedAppointments.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">Title</span>
+                    <input
+                      className="input input-bordered w-full"
+                      value={appointmentForm.title}
+                      onChange={(e) => handleAppointmentFormChange("title", e.target.value)}
+                      placeholder="Client consultation"
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">Type</span>
+                    <select
+                      className="select select-bordered w-full"
+                      value={appointmentForm.type}
+                      onChange={(e) => handleAppointmentFormChange("type", e.target.value)}
+                    >
+                      <option value="consultation">Consultation</option>
+                      <option value="hearing">Hearing</option>
+                      <option value="meeting">Meeting</option>
+                      <option value="deadline">Deadline</option>
+                    </select>
+                  </label>
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">Date</span>
+                    <input
+                      className="input input-bordered w-full"
+                      type="date"
+                      value={appointmentForm.date}
+                      onChange={(e) => handleAppointmentFormChange("date", e.target.value)}
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">Time</span>
+                    <input
+                      className="input input-bordered w-full"
+                      type="time"
+                      value={appointmentForm.time}
+                      onChange={(e) => handleAppointmentFormChange("time", e.target.value)}
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">Location</span>
+                    <input
+                      className="input input-bordered w-full"
+                      value={appointmentForm.location}
+                      onChange={(e) => handleAppointmentFormChange("location", e.target.value)}
+                      placeholder="Courtroom 2 / Zoom / Office"
+                    />
+                  </label>
+                  <label className="form-control">
+                    <span className="mb-2 text-sm font-semibold text-slate-700">Notes</span>
+                    <input
+                      className="input input-bordered w-full"
+                      value={appointmentForm.notes}
+                      onChange={(e) => handleAppointmentFormChange("notes", e.target.value)}
+                      placeholder="Bring signed affidavit"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    className="btn bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={handleAddAppointment}
+                    disabled={isSavingAppointment}
+                  >
+                    {isSavingAppointment ? "Saving..." : "Schedule Appointment"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {sortedAppointments.length ? (
+                  sortedAppointments.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {item.title || "Untitled appointment"}
+                          </p>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {[item.date, item.time, item.location].filter(Boolean).join(" · ") ||
+                              "No schedule details"}
+                          </p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-400">
+                            {item.type || "appointment"}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                            appointmentStatusStyles[item.status] || "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {item.status || "scheduled"}
+                        </span>
+                      </div>
+
+                      {item.notes ? (
+                        <p className="mt-3 text-sm text-slate-600">{item.notes}</p>
+                      ) : null}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-outline"
+                          onClick={() => handleAppointmentStatusChange(item.id, "scheduled")}
+                        >
+                          Mark Scheduled
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-outline border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          onClick={() => handleAppointmentStatusChange(item.id, "completed")}
+                        >
+                          Mark Completed
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-outline border-rose-200 text-rose-700 hover:bg-rose-50"
+                          onClick={() => handleAppointmentStatusChange(item.id, "cancelled")}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost text-red-500 hover:bg-red-50 hover:text-red-600"
+                          onClick={() => handleDeleteAppointment(item.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-slate-500">
+                    No appointments scheduled for this case yet.
                   </div>
                 )}
               </div>

@@ -185,14 +185,22 @@ app.get("/case/:id", async (req, res) => {
 
 // update case
 app.put("/case/:id", async (req, res) => {
-    const id = req.params.id;
+    try {
+        const id = req.params.id;
+        const { _id, ...safePayload } = req.body || {};
 
-    const result = await casesCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: req.body }
-    );
+        const result = await casesCollection.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: safePayload }
+        );
 
-    res.send(result);
+        res.send(result);
+    } catch (error) {
+        res.status(500).send({
+            message: "Failed to update case.",
+            error: error.message,
+        });
+    }
 });
 
 // delete case

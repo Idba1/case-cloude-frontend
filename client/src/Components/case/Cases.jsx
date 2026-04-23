@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import DeleteCaseButton from "./DeleteCaseButton";
 import { AuthContext } from "../../Provider/AuthProvider";
+import { apiUrl } from "../../lib/api";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -33,6 +34,20 @@ const requestStyles = {
   rejected: "bg-rose-50 text-rose-700 border border-rose-200",
 };
 
+const getNextAppointment = (caseItem) =>
+  [...(caseItem.appointments || [])]
+    .filter((appointment) => appointment.status !== "cancelled")
+    .sort((firstAppointment, secondAppointment) => {
+      const firstDate = new Date(
+        `${firstAppointment.date || ""}T${firstAppointment.time || "00:00"}`
+      ).getTime();
+      const secondDate = new Date(
+        `${secondAppointment.date || ""}T${secondAppointment.time || "00:00"}`
+      ).getTime();
+
+      return firstDate - secondDate;
+    })[0];
+
 const Cases = () => {
   const { appUser, loading: authLoading } = useContext(AuthContext);
   const [cases, setCases] = useState([]);
@@ -50,7 +65,7 @@ const Cases = () => {
         setLoading(true);
         setError("");
 
-        const response = await fetch("http://localhost:5000/cases");
+        const response = await fetch(apiUrl("/cases"));
 
         if (!response.ok) {
           throw new Error("Failed to load cases.");
@@ -87,11 +102,7 @@ const Cases = () => {
   });
 
   const clientOptions = Array.from(
-    new Set(
-      visibleCases
-        .map((item) => item.client?.name?.trim())
-        .filter(Boolean)
-    )
+    new Set(visibleCases.map((item) => item.client?.name?.trim()).filter(Boolean))
   ).sort((firstClient, secondClient) => firstClient.localeCompare(secondClient));
 
   const filteredCases = visibleCases
@@ -317,117 +328,133 @@ const Cases = () => {
 
             {!loading && !error && filteredCases.length > 0 ? (
               <div className="grid gap-5 lg:grid-cols-2">
-                {filteredCases.map((item) => (
-                  <article
-                    key={item._id}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
-                          {item.caseNumber || "No case number"}
-                        </p>
-                        <h3 className="mt-2 text-2xl font-bold text-slate-900">
-                          {item.title || "Untitled case"}
-                        </h3>
+                {filteredCases.map((item) => {
+                  const nextAppointment = getNextAppointment(item);
+
+                  return (
+                    <article
+                      key={item._id}
+                      className="rounded-3xl border border-slate-200 bg-slate-50 p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+                            {item.caseNumber || "No case number"}
+                          </p>
+                          <h3 className="mt-2 text-2xl font-bold text-slate-900">
+                            {item.title || "Untitled case"}
+                          </h3>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                              requestStyles[item.requestStatus] ||
+                              "bg-slate-100 text-slate-700 border border-slate-200"
+                            }`}
+                          >
+                            {(item.requestStatus || "approved").replace("_", " ")}
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                              statusStyles[item.status] || "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {item.status || "unknown"}
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                              priorityStyles[item.priority] || "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {item.priority || "medium"} priority
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                            requestStyles[item.requestStatus] ||
-                            "bg-slate-100 text-slate-700 border border-slate-200"
-                          }`}
-                        >
-                          {(item.requestStatus || "approved").replace("_", " ")}
-                        </span>
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                            statusStyles[item.status] || "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {item.status || "unknown"}
-                        </span>
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
-                            priorityStyles[item.priority] || "bg-slate-100 text-slate-700"
-                          }`}
-                        >
-                          {item.priority || "medium"} priority
-                        </span>
-                      </div>
-                    </div>
-
-                    <p className="mt-4 text-sm text-slate-600">
-                      {item.description || "No case summary available yet."}
-                    </p>
-
-                    <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
-                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                          Category
-                        </p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {item.category || "Not added"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                          Client
-                        </p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {item.client?.name || "Not added"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                          Lawyer
-                        </p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {item.lawyer?.name || "Not assigned"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                          Timeline events
-                        </p>
-                        <p className="mt-1 font-semibold text-slate-900">
-                          {item.timeline?.length || 0}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex items-center justify-between">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                        Matter overview
+                      <p className="mt-4 text-sm text-slate-600">
+                        {item.description || "No case summary available yet."}
                       </p>
-                      <div className="flex gap-2">
-                        {role !== "client" ? (
-                          <>
-                            <DeleteCaseButton
-                              caseId={item._id}
-                              caseTitle={item.title}
-                              className="btn btn-sm btn-outline btn-error"
-                              onDeleted={() => handleCaseDeleted(item._id)}
-                            />
-                            <Link
-                              to={`/case/${item._id}/edit`}
-                              className="btn btn-sm btn-outline"
-                            >
-                              Edit
-                            </Link>
-                          </>
-                        ) : null}
-                        <Link
-                          to={`/case/${item._id}`}
-                          className="btn btn-sm bg-slate-900 text-white hover:bg-slate-800"
-                        >
-                          View Details
-                        </Link>
+
+                      <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Category
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {item.category || "Not added"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Client
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {item.client?.name || "Not added"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Lawyer
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {item.lawyer?.name || "Not assigned"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Timeline events
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {item.timeline?.length || 0}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200 md:col-span-2">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Next appointment
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {nextAppointment
+                              ? [nextAppointment.title, nextAppointment.date, nextAppointment.time]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                              : "No appointment scheduled"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+
+                      <div className="mt-5 flex items-center justify-between">
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                          Matter overview
+                        </p>
+                        <div className="flex gap-2">
+                          {role !== "client" ? (
+                            <>
+                              <DeleteCaseButton
+                                caseId={item._id}
+                                caseTitle={item.title}
+                                className="btn btn-sm btn-outline btn-error"
+                                onDeleted={() => handleCaseDeleted(item._id)}
+                              />
+                              <Link
+                                to={`/case/${item._id}/edit`}
+                                className="btn btn-sm btn-outline"
+                              >
+                                Edit
+                              </Link>
+                            </>
+                          ) : null}
+                          <Link
+                            to={`/case/${item._id}`}
+                            className="btn btn-sm bg-slate-900 text-white hover:bg-slate-800"
+                          >
+                            View Details
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             ) : null}
           </div>
