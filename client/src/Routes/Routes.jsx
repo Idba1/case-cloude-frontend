@@ -9,6 +9,7 @@ import Features from "../Pages/Marketing/Features";
 import Faq from "../Pages/Marketing/Faq";
 import Contact from "../Pages/Marketing/Contact";
 import AdminUsers from "../Pages/Admin/AdminUsers";
+import ScheduleBoard from "../Pages/Schedule/ScheduleBoard";
 import Cases from "../Components/case/Cases";
 import AddCase from "../Components/case/AddCase";
 import CaseDetails from "../Components/case/CaseDetails";
@@ -28,6 +29,10 @@ const Routes = createBrowserRouter([
             {
                 path: '/cases',
                 element: <Cases></Cases>,
+            },
+            {
+                path: '/schedule',
+                element: <ScheduleBoard></ScheduleBoard>,
             },
             {
                 path: '/about',
