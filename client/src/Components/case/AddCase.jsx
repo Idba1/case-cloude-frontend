@@ -2,8 +2,14 @@ import { useContext, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import { AuthContext } from "../../Provider/AuthProvider";
+import { apiUrl } from "../../lib/api";
+import {
+  buildUploadedDocument,
+  createLinkDocument,
+  formatFileSize,
+} from "../../lib/documents";
 
-const initialDocument = { name: "", fileUrl: "" };
+const initialDocument = createLinkDocument();
 const initialTimeline = { date: "", event: "" };
 
 const createInitialFormData = () => ({
@@ -158,7 +164,7 @@ const AddCase = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("http://localhost:5000/case", {
+      const response = await fetch(apiUrl("/case"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -184,6 +190,42 @@ const AddCase = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleDocumentUpload = async (index, file) => {
+    if (!file) {
+      return;
+    }
+
+    try {
+      const nextDocument = await buildUploadedDocument(file, documents[index]?.name || "");
+
+      setDocuments((current) =>
+        current.map((item, itemIndex) => (itemIndex === index ? nextDocument : item))
+      );
+
+      toast.success("Document uploaded and attached to the case.");
+    } catch (error) {
+      toast.error(error.message || "Could not process the selected file.");
+    }
+  };
+
+  const handleDocumentUrlChange = (index, value) => {
+    setDocuments((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              fileUrl: value,
+              storageType: value.trim() ? "link" : item.storageType,
+              fileName: value.trim() ? "" : item.fileName,
+              fileType: value.trim() ? "" : item.fileType,
+              fileSize: value.trim() ? 0 : item.fileSize,
+              uploadedAt: value.trim() ? "" : item.uploadedAt,
+            }
+          : item
+      )
+    );
   };
 
   const renderInput = ({
@@ -468,7 +510,7 @@ const AddCase = () => {
                       <div>
                         <h3 className="text-lg font-bold text-slate-900">Documents</h3>
                         <p className="text-sm text-slate-500">
-                          Add links for evidence, agreements, or filings.
+                          Upload files directly or attach external document links.
                         </p>
                       </div>
                       <button
@@ -484,7 +526,7 @@ const AddCase = () => {
                       {documents.map((doc, index) => (
                         <div
                           key={`document-${index}`}
-                          className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[1fr_1fr_auto]"
+                          className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[1fr_1fr]"
                         >
                           {renderInput({
                             label: `Document ${index + 1} Name`,
@@ -506,17 +548,44 @@ const AddCase = () => {
                             name: `document-url-${index}`,
                             value: doc.fileUrl,
                             placeholder: "https://example.com/file.pdf",
-                            onChange: (e) =>
-                              updateArrayItem(
-                                setDocuments,
-                                documents,
-                                index,
-                                "fileUrl",
-                                e.target.value
-                              ),
+                            onChange: (e) => handleDocumentUrlChange(index, e.target.value),
                           })}
 
-                          <div className="flex items-end">
+                          <label className="form-control w-full">
+                            <span className="mb-2 text-sm font-semibold text-slate-700">
+                              Upload file
+                            </span>
+                            <input
+                              className="file-input file-input-bordered w-full"
+                              type="file"
+                              accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
+                              onChange={(e) => {
+                                handleDocumentUpload(index, e.target.files?.[0]);
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+
+                          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 md:col-span-2">
+                            <div className="text-sm text-slate-600">
+                              {doc.storageType === "upload" ? (
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-slate-900">
+                                    Stored file: {doc.fileName || "Uploaded document"}
+                                  </p>
+                                  <p>
+                                    {doc.fileType || "Unknown type"} · {formatFileSize(doc.fileSize)}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p>
+                                  {doc.fileUrl
+                                    ? "External link attached for this document."
+                                    : "No uploaded file or link attached yet."}
+                                </p>
+                              )}
+                            </div>
+
                             <button
                               type="button"
                               className="btn btn-ghost text-red-500 hover:bg-red-50 hover:text-red-600"

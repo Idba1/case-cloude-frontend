@@ -4,6 +4,11 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import DeleteCaseButton from "./DeleteCaseButton";
 import UpdateCase from "./UpdateCase";
 import { AuthContext } from "../../Provider/AuthProvider";
+import { apiUrl } from "../../lib/api";
+import {
+  formatFileSize,
+  getDocumentDownloadName,
+} from "../../lib/documents";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -67,7 +72,7 @@ const CaseDetails = () => {
         setLoading(true);
         setError("");
 
-        const response = await fetch(`http://localhost:5000/case/${id}`);
+        const response = await fetch(apiUrl(`/case/${id}`));
 
         if (!response.ok) {
           throw new Error("Failed to load case details.");
@@ -97,7 +102,7 @@ const CaseDetails = () => {
       }
 
       try {
-        const response = await fetch("http://localhost:5000/cases");
+        const response = await fetch(apiUrl("/cases"));
 
         if (!response.ok) {
           throw new Error("Failed to load client history.");
@@ -206,7 +211,7 @@ const CaseDetails = () => {
   };
 
   const persistCaseUpdate = async (payload, successMessage) => {
-    const response = await fetch(`http://localhost:5000/case/${id}`, {
+    const response = await fetch(apiUrl(`/case/${id}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -394,6 +399,51 @@ const CaseDetails = () => {
     toast.success("Case report generated.");
   };
 
+  const handleDocumentAction = (file) => {
+    try {
+      if (file.storageType === "upload" && file.fileUrl) {
+        const link = window.document.createElement("a");
+        link.href = file.fileUrl;
+        link.download = getDocumentDownloadName(file);
+        link.click();
+        toast.success("Document download started.");
+        return;
+      }
+
+      if (file.fileUrl) {
+        window.open(file.fileUrl, "_blank", "noopener,noreferrer");
+        toast.success("External document opened in a new tab.");
+        return;
+      }
+
+      toast.error("No file is attached to this document yet.");
+    } catch {
+      toast.error("Could not open or download the document.");
+    }
+  };
+
+  const handleDownloadAllFiles = () => {
+    const uploadedDocuments = (caseData.documents || []).filter(
+      (item) => item.storageType === "upload" && item.fileUrl
+    );
+
+    if (!uploadedDocuments.length) {
+      toast.error("There are no uploaded files available for download.");
+      return;
+    }
+
+    uploadedDocuments.forEach((item, index) => {
+      window.setTimeout(() => {
+        const link = window.document.createElement("a");
+        link.href = item.fileUrl;
+        link.download = getDocumentDownloadName(item);
+        link.click();
+      }, index * 200);
+    });
+
+    toast.success("All stored case files are being downloaded.");
+  };
+
   const handleRequestDecision = async (nextRequestStatus) => {
     if (nextRequestStatus === "approved" && (!assignment.name.trim() || !assignment.email.trim())) {
       toast.error("Assign a lawyer name and email before approving.");
@@ -566,7 +616,21 @@ const CaseDetails = () => {
             </div>
 
             <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              <h2 className="text-xl font-bold text-slate-900">Documents</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Documents</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Download stored files or open external document links.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm border-0 bg-slate-900 text-white hover:bg-slate-800"
+                  onClick={handleDownloadAllFiles}
+                >
+                  Download All Files
+                </button>
+              </div>
               <div className="mt-5 space-y-4">
                 {caseData.documents?.length ? (
                   caseData.documents.map((item, index) => (
@@ -578,21 +642,33 @@ const CaseDetails = () => {
                         <p className="font-semibold text-slate-900">
                           {item.name || `Document ${index + 1}`}
                         </p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {item.fileUrl || "No file link added"}
-                        </p>
+                        <div className="mt-1 space-y-1 text-sm text-slate-500">
+                          <p>
+                            {item.storageType === "upload"
+                              ? item.fileName || "Stored case document"
+                              : item.fileUrl || "No file link added"}
+                          </p>
+                          {item.storageType === "upload" ? (
+                            <p>
+                              {item.fileType || "Unknown type"} · {formatFileSize(item.fileSize)}
+                            </p>
+                          ) : null}
+                          <p>
+                            {item.storageType === "upload"
+                              ? "Stored inside this case record"
+                              : "External document link"}
+                          </p>
+                        </div>
                       </div>
 
-                      {item.fileUrl ? (
-                        <a
-                          href={item.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn btn-sm btn-outline"
-                        >
-                          Open Link
-                        </a>
-                      ) : null}
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline"
+                        onClick={() => handleDocumentAction(item)}
+                        disabled={!item.fileUrl}
+                      >
+                        {item.storageType === "upload" ? "Download File" : "Open Link"}
+                      </button>
                     </div>
                   ))
                 ) : (
