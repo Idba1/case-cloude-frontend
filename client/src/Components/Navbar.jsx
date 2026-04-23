@@ -41,6 +41,9 @@ const Navbar = () => {
                         <li>
                             <Link to="/schedule">Schedule</Link>
                         </li>
+                        <li>
+                            <Link to="/documents">Documents</Link>
+                        </li>
                         {appUser?.role === "admin" ? (
                             <li>
                                 <Link to="/admin/users">Admin Panel</Link>
@@ -102,6 +105,9 @@ const Navbar = () => {
                                 </li>
                                 <li>
                                     <Link to="/schedule">Schedule</Link>
+                                </li>
+                                <li>
+                                    <Link to="/documents">Documents</Link>
                                 </li>
                                 {appUser?.role === "admin" ? (
                                     <li>
