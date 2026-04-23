@@ -49,6 +49,7 @@ const CaseDetails = () => {
     }
   };
 
+  
   const writeStoredStatusHistory = (caseId, history) => {
     try {
       const rawHistory = localStorage.getItem(STATUS_HISTORY_KEY);
