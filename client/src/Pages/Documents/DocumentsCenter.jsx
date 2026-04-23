@@ -19,6 +19,7 @@ const DocumentsCenter = () => {
   const [error, setError] = useState("");
   const [searchText, setSearchText] = useState("");
   const [storageFilter, setStorageFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
 
   useEffect(() => {
     const loadCases = async () => {
@@ -82,28 +83,42 @@ const DocumentsCenter = () => {
   const filteredDocuments = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
 
-    return documents.filter((document) => {
-      const matchesStorage =
-        storageFilter === "all" ? true : document.storageType === storageFilter;
+    return documents
+      .filter((document) => {
+        const matchesStorage =
+          storageFilter === "all" ? true : document.storageType === storageFilter;
 
-      const searchableText = [
-        document.name,
-        document.fileName,
-        document.caseTitle,
-        document.caseNumber,
-        document.clientName,
-        document.lawyerName,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+        const searchableText = [
+          document.name,
+          document.fileName,
+          document.caseTitle,
+          document.caseNumber,
+          document.clientName,
+          document.lawyerName,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-      const matchesSearch =
-        !normalizedSearch || searchableText.includes(normalizedSearch);
+        const matchesSearch =
+          !normalizedSearch || searchableText.includes(normalizedSearch);
 
-      return matchesStorage && matchesSearch;
-    });
-  }, [documents, searchText, storageFilter]);
+        return matchesStorage && matchesSearch;
+      })
+      .sort((firstDocument, secondDocument) => {
+        if (sortBy === "name") {
+          return (firstDocument.name || "").localeCompare(secondDocument.name || "");
+        }
+
+        if (sortBy === "case") {
+          return (firstDocument.caseTitle || "").localeCompare(secondDocument.caseTitle || "");
+        }
+
+        const firstDate = new Date(firstDocument.uploadedAt || 0).getTime();
+        const secondDate = new Date(secondDocument.uploadedAt || 0).getTime();
+        return secondDate - firstDate;
+      });
+  }, [documents, searchText, storageFilter, sortBy]);
 
   const stats = {
     total: documents.length,
@@ -154,6 +169,25 @@ const DocumentsCenter = () => {
     URL.revokeObjectURL(downloadUrl);
   };
 
+  const handlePrintIndex = () => {
+    window.print();
+  };
+
+  const handleDownloadAllStoredFiles = () => {
+    const storedFiles = filteredDocuments.filter(
+      (document) => document.storageType === "upload" && document.fileUrl
+    );
+
+    storedFiles.forEach((document, index) => {
+      window.setTimeout(() => {
+        const link = window.document.createElement("a");
+        link.href = document.fileUrl;
+        link.download = getDocumentDownloadName(document);
+        link.click();
+      }, index * 180);
+    });
+  };
+
   if (authLoading) {
     return (
       <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -195,13 +229,22 @@ const DocumentsCenter = () => {
               </p>
             </div>
 
-            <button
-              type="button"
-              className="btn border-0 bg-white text-slate-900 hover:bg-slate-100"
-              onClick={handleExportIndex}
-            >
-              Export Document Index
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="btn border-0 bg-white text-slate-900 hover:bg-slate-100"
+                onClick={handleExportIndex}
+              >
+                Export Document Index
+              </button>
+              <button
+                type="button"
+                className="btn border border-white/30 bg-transparent text-white hover:bg-white hover:text-slate-900"
+                onClick={handlePrintIndex}
+              >
+                Print Index
+              </button>
+            </div>
           </div>
         </section>
 
@@ -247,10 +290,31 @@ const DocumentsCenter = () => {
                 <option value="upload">Stored Files</option>
                 <option value="link">External Links</option>
               </select>
+
+              <select
+                className="select select-bordered w-full md:w-52"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="newest">Sort: Newest</option>
+                <option value="name">Sort: Name</option>
+                <option value="case">Sort: Case</option>
+              </select>
             </div>
           </div>
 
           <div className="mt-6">
+            {!loading && !error && filteredDocuments.length > 0 ? (
+              <div className="mb-5 flex justify-end">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleDownloadAllStoredFiles}
+                >
+                  Download All Stored Files
+                </button>
+              </div>
+            ) : null}
             {loading ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-slate-500">
                 Loading documents...
