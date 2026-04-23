@@ -11,6 +11,12 @@ const appointmentStatusStyles = {
   cancelled: "bg-rose-100 text-rose-700",
 };
 
+const rangeOptions = {
+  all: "All Upcoming",
+  today: "Today",
+  week: "This Week",
+};
+
 const monthLabel = (date) =>
   date.toLocaleString("en-US", { month: "long", year: "numeric" });
 
@@ -44,6 +50,7 @@ const ScheduleBoard = () => {
   const [error, setError] = useState("");
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [statusFilter, setStatusFilter] = useState("all");
+  const [rangeFilter, setRangeFilter] = useState("all");
 
   useEffect(() => {
     const loadCases = async () => {
@@ -147,6 +154,58 @@ const ScheduleBoard = () => {
     return appointmentDate.getTime() >= Date.now();
   });
 
+  const agendaAppointments = upcomingAppointments.filter((appointment) => {
+    if (rangeFilter === "all") {
+      return true;
+    }
+
+    const now = new Date();
+    const appointmentDate = new Date(`${appointment.date}T${appointment.time || "00:00"}`);
+
+    if (rangeFilter === "today") {
+      return dayKey(appointmentDate) === dayKey(now);
+    }
+
+    if (rangeFilter === "week") {
+      const oneWeekFromNow = new Date(now);
+      oneWeekFromNow.setDate(now.getDate() + 7);
+      return appointmentDate >= now && appointmentDate <= oneWeekFromNow;
+    }
+
+    return true;
+  });
+
+  const handleExportAgenda = () => {
+    const lines = [
+      "CaseCloud Schedule Agenda",
+      "=========================",
+      `Generated: ${new Date().toLocaleString()}`,
+      `Range: ${rangeOptions[rangeFilter] || "All Upcoming"}`,
+      `Status Filter: ${statusFilter}`,
+      "",
+      ...(agendaAppointments.length
+        ? agendaAppointments.map(
+            (appointment, index) =>
+              `${index + 1}. ${appointment.date} ${appointment.time || ""} - ${appointment.title || "Untitled appointment"} - ${appointment.caseTitle} - ${appointment.location || "No location"} - ${appointment.status || "scheduled"}`
+          )
+        : ["No appointments available for the selected range."]),
+    ];
+
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/plain;charset=utf-8",
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `casecloud-schedule-${rangeFilter}.txt`;
+    link.click();
+    URL.revokeObjectURL(downloadUrl);
+  };
+
+  const handlePrintSchedule = () => {
+    window.print();
+  };
+
   if (authLoading) {
     return (
       <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -196,6 +255,20 @@ const ScheduleBoard = () => {
               <span className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white">
                 {upcomingAppointments.length} upcoming
               </span>
+              <button
+                type="button"
+                className="btn btn-sm border-0 bg-white text-slate-900 hover:bg-slate-100"
+                onClick={handleExportAgenda}
+              >
+                Export Agenda
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm border border-white/30 bg-transparent text-white hover:bg-white hover:text-slate-900"
+                onClick={handlePrintSchedule}
+              >
+                Print Schedule
+              </button>
             </div>
           </div>
         </section>
@@ -329,10 +402,23 @@ const ScheduleBoard = () => {
 
           <div className="space-y-6">
             <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-              <h2 className="text-xl font-bold text-slate-900">Upcoming agenda</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                The next scheduled items across your visible cases.
-              </p>
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Upcoming agenda</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    The next scheduled items across your visible cases.
+                  </p>
+                </div>
+                <select
+                  className="select select-bordered w-full md:w-44"
+                  value={rangeFilter}
+                  onChange={(e) => setRangeFilter(e.target.value)}
+                >
+                  <option value="all">All Upcoming</option>
+                  <option value="today">Today</option>
+                  <option value="week">This Week</option>
+                </select>
+              </div>
 
               <div className="mt-5 space-y-3">
                 {loading ? (
@@ -347,14 +433,14 @@ const ScheduleBoard = () => {
                   </div>
                 ) : null}
 
-                {!loading && !error && upcomingAppointments.length === 0 ? (
+                {!loading && !error && agendaAppointments.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-slate-500">
                     No upcoming appointments yet.
                   </div>
                 ) : null}
 
-                {!loading && !error && upcomingAppointments.length > 0
-                  ? upcomingAppointments.slice(0, 8).map((appointment) => (
+                {!loading && !error && agendaAppointments.length > 0
+                  ? agendaAppointments.slice(0, 8).map((appointment) => (
                       <Link
                         key={appointment.id}
                         to={`/case/${appointment.caseId}`}
