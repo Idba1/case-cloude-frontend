@@ -51,6 +51,7 @@ const ScheduleBoard = () => {
   const [currentMonth, setCurrentMonth] = useState(() => new Date());
   const [statusFilter, setStatusFilter] = useState("all");
   const [rangeFilter, setRangeFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => {
     const loadCases = async () => {
@@ -109,6 +110,9 @@ const ScheduleBoard = () => {
       )
       .filter((appointment) => appointment.date)
       .filter((appointment) =>
+        typeFilter === "all" ? true : appointment.type === typeFilter
+      )
+      .filter((appointment) =>
         statusFilter === "all" ? true : appointment.status === statusFilter
       )
       .sort((firstItem, secondItem) => {
@@ -121,7 +125,7 @@ const ScheduleBoard = () => {
 
         return firstDate - secondDate;
       });
-  }, [visibleCases, statusFilter]);
+  }, [visibleCases, statusFilter, typeFilter]);
 
   const appointmentsByDay = useMemo(() => {
     return appointmentEntries.reduce((accumulator, appointment) => {
@@ -258,6 +262,13 @@ const ScheduleBoard = () => {
               <button
                 type="button"
                 className="btn btn-sm border-0 bg-white text-slate-900 hover:bg-slate-100"
+                onClick={() => setCurrentMonth(new Date())}
+              >
+                Go to Today
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm border-0 bg-white text-slate-900 hover:bg-slate-100"
                 onClick={handleExportAgenda}
               >
                 Export Agenda
@@ -319,16 +330,30 @@ const ScheduleBoard = () => {
                 </button>
               </div>
 
-              <select
-                className="select select-bordered w-full md:w-52"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All Appointments</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+              <div className="flex flex-col gap-3 md:flex-row">
+                <select
+                  className="select select-bordered w-full md:w-52"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                >
+                  <option value="all">All Types</option>
+                  <option value="consultation">Consultation</option>
+                  <option value="hearing">Hearing</option>
+                  <option value="meeting">Meeting</option>
+                  <option value="deadline">Deadline</option>
+                </select>
+
+                <select
+                  className="select select-bordered w-full md:w-52"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Appointments</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
             </div>
 
             <div className="mt-6 grid grid-cols-7 gap-3 text-center text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
