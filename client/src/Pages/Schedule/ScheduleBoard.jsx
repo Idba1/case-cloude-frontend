@@ -20,6 +20,7 @@ const rangeOptions = {
 const monthLabel = (date) =>
   date.toLocaleString("en-US", { month: "long", year: "numeric" });
 
+
 const dayKey = (date) => date.toISOString().split("T")[0];
 
 const createCalendarDays = (cursorDate) => {
