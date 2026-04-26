@@ -6,9 +6,23 @@ import UpdateCase from "./UpdateCase";
 import { AuthContext } from "../../Provider/AuthProvider";
 import { apiUrl } from "../../lib/api";
 import {
+  calculateBillingSummary,
+  createDefaultBilling,
+  createInvoiceItem,
+  createPaymentEntry,
+  derivePaymentStatus,
+  formatCurrency,
+  normalizeBilling,
+} from "../../lib/billing";
+import {
   formatFileSize,
   getDocumentDownloadName,
 } from "../../lib/documents";
+import {
+  appendCaseNotification,
+  createCaseNotification,
+} from "../../lib/notifications";
+import { generateCaseInsightSummary } from "../../lib/summaries";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -35,6 +49,14 @@ const appointmentStatusStyles = {
   cancelled: "bg-rose-100 text-rose-700",
 };
 
+const paymentStatusStyles = {
+  not_started: "bg-slate-100 text-slate-700",
+  unpaid: "bg-amber-100 text-amber-700",
+  partial: "bg-sky-100 text-sky-700",
+  paid: "bg-emerald-100 text-emerald-700",
+  overdue: "bg-rose-100 text-rose-700",
+};
+
 const createInitialAppointment = () => ({
   title: "",
   date: "",
@@ -43,6 +65,20 @@ const createInitialAppointment = () => ({
   type: "consultation",
   status: "scheduled",
   notes: "",
+});
+
+const createInitialBillingItem = () => ({
+  description: "",
+  quantity: 1,
+  unitPrice: "",
+});
+
+const createInitialPaymentForm = () => ({
+  amount: "",
+  method: "cash",
+  paidAt: "",
+  reference: "",
+  note: "",
 });
 
 const CaseDetails = () => {
@@ -57,6 +93,10 @@ const CaseDetails = () => {
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [appointmentForm, setAppointmentForm] = useState(createInitialAppointment());
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [billingItemForm, setBillingItemForm] = useState(createInitialBillingItem());
+  const [paymentForm, setPaymentForm] = useState(createInitialPaymentForm());
+  const [isSavingBilling, setIsSavingBilling] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const isClient = appUser?.role === "client";
@@ -207,7 +247,7 @@ const CaseDetails = () => {
     );
   }
 
-  const handleStatusUpdate = (nextStatus) => {
+  const handleStatusUpdate = async (nextStatus) => {
     const historyEntry = {
       status: nextStatus,
       note: `Status changed from ${caseData.status || "unknown"} to ${nextStatus}`,
@@ -215,17 +255,32 @@ const CaseDetails = () => {
     };
 
     const nextHistory = [historyEntry, ...statusHistory];
-
-    setCaseData((current) => ({
-      ...current,
+    const updatedCase = {
+      ...caseData,
       status: nextStatus,
+      notifications: appendCaseNotification(
+        caseData,
+        createCaseNotification({
+          type: "status",
+          title: "Case status updated",
+          message: historyEntry.note,
+          audience: "all",
+        })
+      ),
       dates: {
-        ...current.dates,
+        ...caseData.dates,
         updatedAt: historyEntry.changedAt,
       },
-    }));
-    setStatusHistory(nextHistory);
-    writeStoredStatusHistory(caseData._id, nextHistory);
+    };
+
+    try {
+      await persistCaseUpdate(updatedCase);
+      setCaseData(updatedCase);
+      setStatusHistory(nextHistory);
+      writeStoredStatusHistory(caseData._id, nextHistory);
+    } catch {
+      toast.error("Status updated, but full activity sync failed.");
+    }
   };
 
   const persistCaseUpdate = async (payload, successMessage) => {
@@ -263,6 +318,15 @@ const CaseDetails = () => {
     const updatedCase = {
       ...caseData,
       notes: nextNotes,
+      notifications: appendCaseNotification(
+        caseData,
+        createCaseNotification({
+          type: "note",
+          title: "Case note added",
+          message: `A new internal note was added to ${caseData.title || "this case"}.`,
+          audience: "all",
+        })
+      ),
       dates: {
         ...caseData.dates,
         updatedAt: new Date().toISOString(),
@@ -398,6 +462,18 @@ const CaseDetails = () => {
               } - ${item.note || "No activity note"}`
           )
         : ["No status history available."]),
+      "",
+      "Billing Snapshot",
+      "----------------",
+      `Invoice Number: ${billing.invoiceNumber || "Not created"}`,
+      `Payment Status: ${paymentStatus}`,
+      `Invoice Total: ${formatCurrency(billingSummary.total, billing.currency)}`,
+      `Amount Paid: ${formatCurrency(billingSummary.amountPaid, billing.currency)}`,
+      `Outstanding: ${formatCurrency(billingSummary.outstanding, billing.currency)}`,
+      "",
+      "AI Case Summary",
+      "---------------",
+      caseData.aiSummary?.text || "No AI-style summary generated yet.",
     ];
 
     const reportBlob = new Blob([reportLines.join("\n")], {
@@ -468,6 +544,17 @@ const CaseDetails = () => {
     const updatedCase = {
       ...caseData,
       appointments: nextAppointments,
+      notifications: appendCaseNotification(
+        caseData,
+        createCaseNotification({
+          type: "appointment",
+          title: "Appointment scheduled",
+          message: `${appointmentForm.title.trim()} was scheduled for ${
+            caseData.title || "this case"
+          }.`,
+          audience: "all",
+        })
+      ),
       dates: {
         ...caseData.dates,
         updatedAt: new Date().toISOString(),
@@ -502,6 +589,15 @@ const CaseDetails = () => {
     const updatedCase = {
       ...caseData,
       appointments: nextAppointments,
+      notifications: appendCaseNotification(
+        caseData,
+        createCaseNotification({
+          type: "appointment",
+          title: "Appointment status updated",
+          message: `An appointment for ${caseData.title || "this case"} was marked as ${nextStatus}.`,
+          audience: "all",
+        })
+      ),
       dates: {
         ...caseData.dates,
         updatedAt: new Date().toISOString(),
@@ -524,6 +620,15 @@ const CaseDetails = () => {
     const updatedCase = {
       ...caseData,
       appointments: nextAppointments,
+      notifications: appendCaseNotification(
+        caseData,
+        createCaseNotification({
+          type: "appointment",
+          title: "Appointment removed",
+          message: `An appointment was removed from ${caseData.title || "this case"}.`,
+          audience: "all",
+        })
+      ),
       dates: {
         ...caseData.dates,
         updatedAt: new Date().toISOString(),
@@ -560,6 +665,289 @@ const CaseDetails = () => {
     toast.success("All stored case files are being downloaded.");
   };
 
+  const handleBillingFieldChange = (field, value) => {
+    setCaseData((current) => ({
+      ...current,
+      billing: {
+        ...normalizeBilling(current?.billing),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleBillingItemFieldChange = (field, value) => {
+    setBillingItemForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handlePaymentFieldChange = (field, value) => {
+    setPaymentForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveInvoiceSettings = async () => {
+    const nextBilling = {
+      ...normalizeBilling(caseData.billing),
+      invoiceStatus:
+        normalizeBilling(caseData.billing).invoiceStatus || "issued",
+    };
+    const notification = createCaseNotification({
+      type: "billing",
+      title: "Invoice settings updated",
+      message: `Billing details were updated for ${caseData.title || "this case"}.`,
+      audience: "all",
+    });
+    const updatedCase = {
+      ...caseData,
+      billing: nextBilling,
+      notifications: appendCaseNotification(caseData, notification),
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    setIsSavingBilling(true);
+
+    try {
+      await persistCaseUpdate(updatedCase, "Invoice settings saved.");
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not save invoice settings.");
+    } finally {
+      setIsSavingBilling(false);
+    }
+  };
+
+  const handleAddInvoiceItem = async () => {
+    if (!billingItemForm.description.trim()) {
+      toast.error("Write an invoice item description first.");
+      return;
+    }
+
+    const nextBilling = normalizeBilling(caseData.billing);
+    nextBilling.items = [
+      {
+        ...createInvoiceItem(),
+        description: billingItemForm.description.trim(),
+        quantity: Number(billingItemForm.quantity) || 1,
+        unitPrice: Number(billingItemForm.unitPrice) || 0,
+      },
+      ...nextBilling.items,
+    ];
+
+    if (!nextBilling.invoiceStatus || nextBilling.invoiceStatus === "draft") {
+      nextBilling.invoiceStatus = "issued";
+    }
+
+    const notification = createCaseNotification({
+      type: "billing",
+      title: "Invoice item added",
+      message: `${billingItemForm.description.trim()} was added to the invoice for ${
+        caseData.title || "this case"
+      }.`,
+      audience: "all",
+    });
+
+    const updatedCase = {
+      ...caseData,
+      billing: nextBilling,
+      notifications: appendCaseNotification(caseData, notification),
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    setIsSavingBilling(true);
+
+    try {
+      await persistCaseUpdate(updatedCase, "Invoice item added.");
+      setCaseData(updatedCase);
+      setBillingItemForm(createInitialBillingItem());
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not add the invoice item.");
+    } finally {
+      setIsSavingBilling(false);
+    }
+  };
+
+  const handleRemoveInvoiceItem = async (itemId) => {
+    const nextBilling = normalizeBilling(caseData.billing);
+    nextBilling.items = nextBilling.items.filter((item) => item.id !== itemId);
+
+    const updatedCase = {
+      ...caseData,
+      billing: nextBilling,
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await persistCaseUpdate(updatedCase, "Invoice item removed.");
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not remove the invoice item.");
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    if (!paymentForm.amount || !paymentForm.paidAt) {
+      toast.error("Payment amount and date are required.");
+      return;
+    }
+
+    const nextBilling = normalizeBilling(caseData.billing);
+    nextBilling.payments = [
+      {
+        ...createPaymentEntry(),
+        amount: Number(paymentForm.amount) || 0,
+        method: paymentForm.method,
+        paidAt: paymentForm.paidAt,
+        reference: paymentForm.reference.trim(),
+        note: paymentForm.note.trim(),
+      },
+      ...nextBilling.payments,
+    ];
+    nextBilling.invoiceStatus = "issued";
+
+    const notification = createCaseNotification({
+      type: "payment",
+      title: "Payment recorded",
+      message: `A payment of ${paymentForm.amount} ${nextBilling.currency} was recorded for ${
+        caseData.title || "this case"
+      }.`,
+      audience: "all",
+    });
+
+    const updatedCase = {
+      ...caseData,
+      billing: nextBilling,
+      notifications: appendCaseNotification(caseData, notification),
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    setIsSavingBilling(true);
+
+    try {
+      await persistCaseUpdate(updatedCase, "Payment recorded.");
+      setCaseData(updatedCase);
+      setPaymentForm(createInitialPaymentForm());
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not record the payment.");
+    } finally {
+      setIsSavingBilling(false);
+    }
+  };
+
+  const handleGenerateInvoice = () => {
+    const billing = normalizeBilling(caseData.billing);
+    const billingSummary = calculateBillingSummary(billing);
+    const paymentStatus = derivePaymentStatus(billing);
+    const invoiceLines = [
+      "CaseCloud Invoice",
+      "=================",
+      `Invoice Number: ${billing.invoiceNumber || "Draft invoice"}`,
+      `Case: ${caseData.title || "Untitled case"}`,
+      `Case Number: ${caseData.caseNumber || "Not available"}`,
+      `Client: ${caseData.client?.name || "Not added"}`,
+      `Issued At: ${billing.issuedAt || "Not set"}`,
+      `Due Date: ${billing.dueDate || "Not set"}`,
+      "",
+      "Invoice Items",
+      "-------------",
+      ...(billing.items.length
+        ? billing.items.map(
+            (item, index) =>
+              `${index + 1}. ${item.description || "No description"} | Qty ${
+                item.quantity || 0
+              } | ${formatCurrency(item.unitPrice, billing.currency)}`
+          )
+        : ["No invoice items have been added yet."]),
+      "",
+      `Subtotal: ${formatCurrency(billingSummary.subtotal, billing.currency)}`,
+      `Tax: ${formatCurrency(billingSummary.taxAmount, billing.currency)}`,
+      `Discount: ${formatCurrency(billingSummary.discount, billing.currency)}`,
+      `Total: ${formatCurrency(billingSummary.total, billing.currency)}`,
+      `Amount Paid: ${formatCurrency(billingSummary.amountPaid, billing.currency)}`,
+      `Outstanding: ${formatCurrency(billingSummary.outstanding, billing.currency)}`,
+      `Payment Status: ${paymentStatus}`,
+    ];
+
+    const invoiceBlob = new Blob([invoiceLines.join("\n")], {
+      type: "text/plain;charset=utf-8",
+    });
+    const invoiceUrl = URL.createObjectURL(invoiceBlob);
+    const invoiceLink = document.createElement("a");
+    const sanitizedTitle = (caseData.title || "invoice")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    invoiceLink.href = invoiceUrl;
+    invoiceLink.download = `${sanitizedTitle || "invoice"}-invoice.txt`;
+    invoiceLink.click();
+    URL.revokeObjectURL(invoiceUrl);
+    toast.success("Invoice exported.");
+  };
+
+  const handleGenerateAiSummary = async () => {
+    setIsGeneratingSummary(true);
+
+    const summaryText = generateCaseInsightSummary({
+      caseData,
+      statusHistory,
+      clientHistory,
+    });
+
+    const notification = createCaseNotification({
+      type: "summary",
+      title: "AI-style summary generated",
+      message: `A fresh case summary was prepared for ${caseData.title || "this case"}.`,
+      audience: "all",
+    });
+
+    const updatedCase = {
+      ...caseData,
+      aiSummary: {
+        text: summaryText,
+        generatedAt: new Date().toISOString(),
+      },
+      notifications: appendCaseNotification(caseData, notification),
+      dates: {
+        ...caseData.dates,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+
+    try {
+      await persistCaseUpdate(updatedCase, "AI-style case summary generated.");
+      setCaseData(updatedCase);
+    } catch (saveError) {
+      toast.error(saveError.message || "Could not generate the summary.");
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
+  const handleCopyAiSummary = async () => {
+    try {
+      await navigator.clipboard.writeText(caseData.aiSummary?.text || "");
+      toast.success("Case summary copied.");
+    } catch {
+      toast.error("Could not copy the summary.");
+    }
+  };
+
   const handleRequestDecision = async (nextRequestStatus) => {
     if (nextRequestStatus === "approved" && (!assignment.name.trim() || !assignment.email.trim())) {
       toast.error("Assign a lawyer name and email before approving.");
@@ -573,6 +961,21 @@ const CaseDetails = () => {
         nextRequestStatus === "approved"
           ? { name: assignment.name.trim(), email: assignment.email.trim() }
           : caseData.lawyer,
+      notifications: appendCaseNotification(
+        caseData,
+        createCaseNotification({
+          type: "request",
+          title:
+            nextRequestStatus === "approved"
+              ? "Case request approved"
+              : "Case request rejected",
+          message:
+            nextRequestStatus === "approved"
+              ? `${caseData.title || "This case"} was approved and assigned.`
+              : `${caseData.title || "This case"} was rejected after review.`,
+          audience: "all",
+        })
+      ),
       dates: {
         ...caseData.dates,
         updatedAt: new Date().toISOString(),
@@ -598,6 +1001,9 @@ const CaseDetails = () => {
 
     return firstDate - secondDate;
   });
+  const billing = normalizeBilling(caseData.billing || createDefaultBilling());
+  const billingSummary = calculateBillingSummary(billing);
+  const paymentStatus = derivePaymentStatus(billing);
 
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -709,6 +1115,352 @@ const CaseDetails = () => {
                       ? new Date(caseData.dates.createdAt).toLocaleString()
                       : "Not available"}
                   </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">AI Case Summary</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Generate a polished, AI-style case brief using the data already stored in this matter.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn border-0 bg-slate-900 text-white hover:bg-slate-800"
+                    onClick={handleGenerateAiSummary}
+                    disabled={isGeneratingSummary}
+                  >
+                    {isGeneratingSummary ? "Generating..." : "Generate AI Summary"}
+                  </button>
+                  {caseData.aiSummary?.text ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={handleCopyAiSummary}
+                    >
+                      Copy Summary
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                {caseData.aiSummary?.text ? (
+                  <>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      Generated{" "}
+                      {caseData.aiSummary.generatedAt
+                        ? new Date(caseData.aiSummary.generatedAt).toLocaleString()
+                        : "just now"}
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-slate-700">
+                      {caseData.aiSummary.text}
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-sm leading-6 text-slate-500">
+                    No AI-style summary has been generated yet. Use the button above to build a concise overview of the case, client, appointments, notes, and billing status.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">Billing & Invoice</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Prepare invoice details, add billable items, and monitor payment progress in one place.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                      paymentStatusStyles[paymentStatus] || "bg-slate-100 text-slate-700"
+                    }`}
+                  >
+                    {paymentStatus.replace("_", " ")}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline"
+                    onClick={handleGenerateInvoice}
+                  >
+                    Export Invoice
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Subtotal</p>
+                  <p className="mt-2 font-semibold text-slate-900">
+                    {formatCurrency(billingSummary.subtotal, billing.currency)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Total</p>
+                  <p className="mt-2 font-semibold text-slate-900">
+                    {formatCurrency(billingSummary.total, billing.currency)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Paid</p>
+                  <p className="mt-2 font-semibold text-emerald-700">
+                    {formatCurrency(billingSummary.amountPaid, billing.currency)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-4 ring-1 ring-slate-200">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Outstanding</p>
+                  <p className="mt-2 font-semibold text-rose-700">
+                    {formatCurrency(billingSummary.outstanding, billing.currency)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">Invoice Number</span>
+                  <input
+                    className="input input-bordered w-full"
+                    value={billing.invoiceNumber}
+                    onChange={(e) => handleBillingFieldChange("invoiceNumber", e.target.value)}
+                    placeholder="INV-2026-001"
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">Currency</span>
+                  <select
+                    className="select select-bordered w-full"
+                    value={billing.currency}
+                    onChange={(e) => handleBillingFieldChange("currency", e.target.value)}
+                  >
+                    <option value="BDT">BDT</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </label>
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">Issued Date</span>
+                  <input
+                    className="input input-bordered w-full"
+                    type="date"
+                    value={billing.issuedAt}
+                    onChange={(e) => handleBillingFieldChange("issuedAt", e.target.value)}
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">Due Date</span>
+                  <input
+                    className="input input-bordered w-full"
+                    type="date"
+                    value={billing.dueDate}
+                    onChange={(e) => handleBillingFieldChange("dueDate", e.target.value)}
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">Tax Rate (%)</span>
+                  <input
+                    className="input input-bordered w-full"
+                    type="number"
+                    min="0"
+                    value={billing.taxRate}
+                    onChange={(e) => handleBillingFieldChange("taxRate", e.target.value)}
+                  />
+                </label>
+                <label className="form-control">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">Discount</span>
+                  <input
+                    className="input input-bordered w-full"
+                    type="number"
+                    min="0"
+                    value={billing.discount}
+                    onChange={(e) => handleBillingFieldChange("discount", e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  className="btn bg-slate-900 text-white hover:bg-slate-800"
+                  onClick={handleSaveInvoiceSettings}
+                  disabled={isSavingBilling}
+                >
+                  {isSavingBilling ? "Saving..." : "Save Invoice Settings"}
+                </button>
+              </div>
+
+              <div className="mt-6 grid gap-6 xl:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <h3 className="text-lg font-bold text-slate-900">Invoice Items</h3>
+                  <div className="mt-4 grid gap-3">
+                    <input
+                      className="input input-bordered w-full"
+                      value={billingItemForm.description}
+                      onChange={(e) =>
+                        handleBillingItemFieldChange("description", e.target.value)
+                      }
+                      placeholder="Court filing fee"
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <input
+                        className="input input-bordered w-full"
+                        type="number"
+                        min="1"
+                        value={billingItemForm.quantity}
+                        onChange={(e) =>
+                          handleBillingItemFieldChange("quantity", e.target.value)
+                        }
+                        placeholder="Quantity"
+                      />
+                      <input
+                        className="input input-bordered w-full"
+                        type="number"
+                        min="0"
+                        value={billingItemForm.unitPrice}
+                        onChange={(e) =>
+                          handleBillingItemFieldChange("unitPrice", e.target.value)
+                        }
+                        placeholder="Unit Price"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn bg-cyan-600 text-white hover:bg-cyan-700"
+                      onClick={handleAddInvoiceItem}
+                      disabled={isSavingBilling}
+                    >
+                      Add Invoice Item
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {billing.items.length ? (
+                      billing.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {item.description || "Untitled item"}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Qty {item.quantity || 0} •{" "}
+                                {formatCurrency(item.unitPrice, billing.currency)}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost text-red-500 hover:bg-red-50 hover:text-red-600"
+                              onClick={() => handleRemoveInvoiceItem(item.id)}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-slate-500">
+                        No invoice items added yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <h3 className="text-lg font-bold text-slate-900">Payment Tracking</h3>
+                  <div className="mt-4 grid gap-3">
+                    <input
+                      className="input input-bordered w-full"
+                      type="number"
+                      min="0"
+                      value={paymentForm.amount}
+                      onChange={(e) => handlePaymentFieldChange("amount", e.target.value)}
+                      placeholder="Payment amount"
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <select
+                        className="select select-bordered w-full"
+                        value={paymentForm.method}
+                        onChange={(e) => handlePaymentFieldChange("method", e.target.value)}
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="mobile_banking">Mobile Banking</option>
+                        <option value="card">Card</option>
+                      </select>
+                      <input
+                        className="input input-bordered w-full"
+                        type="date"
+                        value={paymentForm.paidAt}
+                        onChange={(e) => handlePaymentFieldChange("paidAt", e.target.value)}
+                      />
+                    </div>
+                    <input
+                      className="input input-bordered w-full"
+                      value={paymentForm.reference}
+                      onChange={(e) => handlePaymentFieldChange("reference", e.target.value)}
+                      placeholder="Reference / transaction ID"
+                    />
+                    <input
+                      className="input input-bordered w-full"
+                      value={paymentForm.note}
+                      onChange={(e) => handlePaymentFieldChange("note", e.target.value)}
+                      placeholder="Payment note"
+                    />
+                    <button
+                      type="button"
+                      className="btn bg-emerald-600 text-white hover:bg-emerald-700"
+                      onClick={handleRecordPayment}
+                      disabled={isSavingBilling}
+                    >
+                      Record Payment
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {billing.payments.length ? (
+                      billing.payments.map((item) => (
+                        <div
+                          key={item.id}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {formatCurrency(item.amount, billing.currency)}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {[item.paidAt, item.method, item.reference]
+                                  .filter(Boolean)
+                                  .join(" • ")}
+                              </p>
+                            </div>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                                paymentStatusStyles[paymentStatus] || "bg-slate-100 text-slate-700"
+                              }`}
+                            >
+                              {paymentStatus.replace("_", " ")}
+                            </span>
+                          </div>
+                          {item.note ? (
+                            <p className="mt-3 text-sm text-slate-600">{item.note}</p>
+                          ) : null}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-slate-500">
+                        No payments recorded yet.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

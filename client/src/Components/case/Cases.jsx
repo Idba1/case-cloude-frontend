@@ -3,6 +3,12 @@ import { Link } from "react-router-dom";
 import DeleteCaseButton from "./DeleteCaseButton";
 import { AuthContext } from "../../Provider/AuthProvider";
 import { apiUrl } from "../../lib/api";
+import {
+  calculateBillingSummary,
+  derivePaymentStatus,
+  formatCurrency,
+  normalizeBilling,
+} from "../../lib/billing";
 
 const statusStyles = {
   pending: "bg-amber-100 text-amber-700",
@@ -32,6 +38,14 @@ const requestStyles = {
   pending_review: "bg-amber-50 text-amber-700 border border-amber-200",
   approved: "bg-emerald-50 text-emerald-700 border border-emerald-200",
   rejected: "bg-rose-50 text-rose-700 border border-rose-200",
+};
+
+const paymentStatusStyles = {
+  not_started: "bg-slate-100 text-slate-700",
+  unpaid: "bg-amber-100 text-amber-700",
+  partial: "bg-sky-100 text-sky-700",
+  paid: "bg-emerald-100 text-emerald-700",
+  overdue: "bg-rose-100 text-rose-700",
 };
 
 const getNextAppointment = (caseItem) =>
@@ -330,6 +344,9 @@ const Cases = () => {
               <div className="grid gap-5 lg:grid-cols-2">
                 {filteredCases.map((item) => {
                   const nextAppointment = getNextAppointment(item);
+                  const billing = normalizeBilling(item.billing);
+                  const billingSummary = calculateBillingSummary(billing);
+                  const paymentStatus = derivePaymentStatus(billing);
 
                   return (
                     <article
@@ -368,6 +385,13 @@ const Cases = () => {
                             }`}
                           >
                             {item.priority || "medium"} priority
+                          </span>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+                              paymentStatusStyles[paymentStatus] || "bg-slate-100 text-slate-700"
+                            }`}
+                          >
+                            {paymentStatus.replace("_", " ")}
                           </span>
                         </div>
                       </div>
@@ -419,6 +443,22 @@ const Cases = () => {
                                   .filter(Boolean)
                                   .join(" · ")
                               : "No appointment scheduled"}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Outstanding
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {formatCurrency(billingSummary.outstanding, billing.currency)}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                            Notifications
+                          </p>
+                          <p className="mt-1 font-semibold text-slate-900">
+                            {item.notifications?.length || 0}
                           </p>
                         </div>
                       </div>

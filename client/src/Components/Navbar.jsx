@@ -44,6 +44,12 @@ const Navbar = () => {
                         <li>
                             <Link to="/documents">Documents</Link>
                         </li>
+                        <li>
+                            <Link to="/notifications">Notifications</Link>
+                        </li>
+                        <li>
+                            <Link to="/help-desk">Help Desk</Link>
+                        </li>
                         {appUser?.role === "admin" ? (
                             <li>
                                 <Link to="/admin/users">Admin Panel</Link>
@@ -108,6 +114,12 @@ const Navbar = () => {
                                 </li>
                                 <li>
                                     <Link to="/documents">Documents</Link>
+                                </li>
+                                <li>
+                                    <Link to="/notifications">Notifications</Link>
+                                </li>
+                                <li>
+                                    <Link to="/help-desk">Help Desk</Link>
                                 </li>
                                 {appUser?.role === "admin" ? (
                                     <li>

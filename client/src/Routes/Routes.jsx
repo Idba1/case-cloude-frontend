@@ -10,7 +10,9 @@ import Faq from "../Pages/Marketing/Faq";
 import Contact from "../Pages/Marketing/Contact";
 import AdminUsers from "../Pages/Admin/AdminUsers";
 import DocumentsCenter from "../Pages/Documents/DocumentsCenter";
+import NotificationsCenter from "../Pages/Notifications/NotificationsCenter";
 import ScheduleBoard from "../Pages/Schedule/ScheduleBoard";
+import HelpDeskChatbot from "../Pages/Support/HelpDeskChatbot";
 import Cases from "../Components/case/Cases";
 import AddCase from "../Components/case/AddCase";
 import CaseDetails from "../Components/case/CaseDetails";
@@ -38,6 +40,14 @@ const Routes = createBrowserRouter([
             {
                 path: '/documents',
                 element: <DocumentsCenter></DocumentsCenter>,
+            },
+            {
+                path: '/notifications',
+                element: <NotificationsCenter></NotificationsCenter>,
+            },
+            {
+                path: '/help-desk',
+                element: <HelpDeskChatbot></HelpDeskChatbot>,
             },
             {
                 path: '/about',
