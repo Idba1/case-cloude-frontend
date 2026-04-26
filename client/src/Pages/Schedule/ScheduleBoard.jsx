@@ -17,6 +17,7 @@ const rangeOptions = {
   week: "This Week",
 };
 
+
 const monthLabel = (date) =>
   date.toLocaleString("en-US", { month: "long", year: "numeric" });
 
