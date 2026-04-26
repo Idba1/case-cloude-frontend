@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 const Footer = () => {
   return (
     <footer className="border-t border-slate-200 bg-white">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr] md:px-6">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 md:grid-cols-[1.15fr_0.85fr_0.95fr_1fr] md:px-6">
         <div>
           <div className="flex items-center gap-3">
             <img className="h-8 w-auto" src="/logo.png" alt="CaseCloud logo" />
@@ -16,33 +16,39 @@ const Footer = () => {
         </div>
         <div>
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">
-            Explore
+            Company
           </h3>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <Link to="/" className="block hover:text-cyan-700">Home</Link>
             <Link to="/about" className="block hover:text-cyan-700">About</Link>
             <Link to="/features" className="block hover:text-cyan-700">Features</Link>
+            <Link to="/contact" className="block hover:text-cyan-700">Contact</Link>
           </div>
         </div>
 
         <div>
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">
-            Resources
+            Support
           </h3>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <Link to="/faq" className="block hover:text-cyan-700">FAQ</Link>
-            <Link to="/contact" className="block hover:text-cyan-700">Contact</Link>
+            <Link to="/help-desk" className="block hover:text-cyan-700">Help Desk</Link>
+            <Link to="/notifications" className="block hover:text-cyan-700">Notifications</Link>
+            <Link to="/profile" className="block hover:text-cyan-700">Profile</Link>
             <Link to="/login" className="block hover:text-cyan-700">Login</Link>
           </div>
         </div>
 
         <div>
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">
-            Internal Access
+            Workspace
           </h3>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
             <Link to="/cases" className="block hover:text-cyan-700">Case Dashboard</Link>
+            <Link to="/schedule" className="block hover:text-cyan-700">Schedule</Link>
+            <Link to="/documents" className="block hover:text-cyan-700">Documents</Link>
             <Link to="/add-case" className="block hover:text-cyan-700">Create Case</Link>
+            <Link to="/security" className="block hover:text-cyan-700">Security Center</Link>
             <Link to="/admin/users" className="block hover:text-cyan-700">Admin Panel</Link>
           </div>
         </div>

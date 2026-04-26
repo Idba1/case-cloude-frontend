@@ -7,6 +7,7 @@ const Navbar = () => {
     const roleLabel = appUser?.role
         ? `${appUser.role.charAt(0).toUpperCase()}${appUser.role.slice(1)}`
         : 'User';
+    const isAdmin = appUser?.role === "admin";
 
     return (
         <div className="border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -19,7 +20,7 @@ const Navbar = () => {
                 </div>
 
                 <div className="flex-none gap-2">
-                    <ul className="menu menu-horizontal items-center gap-1 px-1 text-sm font-medium text-slate-700">
+                    <ul className="menu menu-horizontal hidden items-center gap-1 px-1 text-sm font-medium text-slate-700 lg:flex">
                         <li>
                             <Link to="/">Home</Link>
                         </li>
@@ -30,37 +31,16 @@ const Navbar = () => {
                             <Link to="/features">Features</Link>
                         </li>
                         <li>
-                            <Link to="/faq">FAQ</Link>
+                            <Link to="/features">Features</Link>
                         </li>
                         <li>
                             <Link to="/contact">Contact</Link>
                         </li>
-                        <li>
-                            <Link to="/cases">Case Dashboard</Link>
-                        </li>
-                        <li>
-                            <Link to="/schedule">Schedule</Link>
-                        </li>
-                        <li>
-                            <Link to="/documents">Documents</Link>
-                        </li>
-                        <li>
-                            <Link to="/notifications">Notifications</Link>
-                        </li>
-                        <li>
-                            <Link to="/profile">Profile</Link>
-                        </li>
-                        <li>
-                            <Link to="/help-desk">Help Desk</Link>
-                        </li>
-                        {appUser?.role === "admin" ? (
+                        {user ? (
                             <li>
-                                <Link to="/admin/users">Admin Panel</Link>
+                                <Link to="/cases">Dashboard</Link>
                             </li>
                         ) : null}
-                        <li>
-                            <Link to="/add-case">Create Case</Link>
-                        </li>
                         {!user ? (
                             <>
                                 <li>
@@ -72,6 +52,22 @@ const Navbar = () => {
                             </>
                         ) : null}
                     </ul>
+
+                    {user ? (
+                        <Link
+                            to={isAdmin ? "/admin/users" : "/cases"}
+                            className="btn hidden border-0 bg-slate-900 text-white hover:bg-slate-800 md:inline-flex"
+                        >
+                            {isAdmin ? "Admin Panel" : "Open Dashboard"}
+                        </Link>
+                    ) : (
+                        <Link
+                            to="/login"
+                            className="btn hidden border-0 bg-slate-900 text-white hover:bg-slate-800 md:inline-flex"
+                        >
+                            Get Started
+                        </Link>
+                    )}
 
                     {user ? (
                         <div className="dropdown dropdown-end z-50">
@@ -130,7 +126,10 @@ const Navbar = () => {
                                 <li>
                                     <Link to="/help-desk">Help Desk</Link>
                                 </li>
-                                {appUser?.role === "admin" ? (
+                                <li>
+                                    <Link to="/faq">FAQ</Link>
+                                </li>
+                                {isAdmin ? (
                                     <li>
                                         <Link to="/admin/users">Admin Panel</Link>
                                     </li>
@@ -148,7 +147,38 @@ const Navbar = () => {
                                 </li>
                             </ul>
                         </div>
-                    ) : null}
+                    ) : (
+                        <div className="dropdown dropdown-end lg:hidden">
+                            <div tabIndex={0} role="button" className="btn btn-ghost btn-circle">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth="1.8"
+                                    stroke="currentColor"
+                                    className="h-6 w-6"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                                    />
+                                </svg>
+                            </div>
+                            <ul
+                                tabIndex={0}
+                                className="menu menu-sm dropdown-content mt-3 w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-lg"
+                            >
+                                <li><Link to="/">Home</Link></li>
+                                <li><Link to="/about">About</Link></li>
+                                <li><Link to="/features">Features</Link></li>
+                                <li><Link to="/contact">Contact</Link></li>
+                                <li><Link to="/faq">FAQ</Link></li>
+                                <li><Link to="/login">Login</Link></li>
+                                <li><Link to="/registration">Register</Link></li>
+                            </ul>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
