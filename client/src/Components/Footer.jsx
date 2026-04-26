@@ -14,7 +14,6 @@ const Footer = () => {
             clarity from secure internal legal workflow.
           </p>
         </div>
-
         <div>
           <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-900">
             Explore
