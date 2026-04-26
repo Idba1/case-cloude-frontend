@@ -1,10 +1,12 @@
-import { useContext } from "react"
+import { useContext, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../../Provider/AuthProvider"
 import toast from "react-hot-toast";
 import { STATIC_ADMIN_EMAIL, STATIC_ADMIN_PASSWORD } from "../../constants/roles";
+import { logAuthActivity, writeTrustedDevice } from "../../lib/authActivity";
 
 const Login = () => {
+    const [showPassword, setShowPassword] = useState(false)
     const { signIn, signInWithGoogle, loadUserProfile, setAppUser, loginAsStaticAdmin } = useContext(AuthContext);
     const navigate = useNavigate()
 
@@ -13,10 +15,11 @@ const Login = () => {
     const handleGooleSignIn = async () => {
         try {
             const result = await signInWithGoogle()
-            const existingProfile = await loadUserProfile(result.user.email)
+            const normalizedEmail = result.user.email.toLowerCase()
+            const existingProfile = await loadUserProfile(normalizedEmail)
             setAppUser(existingProfile || {
                 name: result.user.displayName || 'CaseCloud User',
-                email: result.user.email,
+                email: normalizedEmail,
                 photo: result.user.photoURL || '',
                 role: 'client',
                 approvalStatus: 'approved',
@@ -26,6 +29,13 @@ const Login = () => {
                 navigate('/')
                 return
             }
+            logAuthActivity({
+                type: 'login',
+                email: existingProfile?.email || normalizedEmail,
+                role: existingProfile?.role || 'client',
+                method: 'google',
+                detail: 'Signed in with Google.',
+            })
             toast.success('Sign in successfully!')
             navigate(existingProfile?.role === "admin" ? '/admin/users' : '/cases')
         } catch (error) {
@@ -40,10 +50,11 @@ const Login = () => {
         const form = e.target
         const email = form.email.value.toLowerCase()
         const pass = form.password.value
-        console.log({ email, pass })
+        const trustedDevice = form.trustedDevice.checked
         try {
             if (email === STATIC_ADMIN_EMAIL?.toLowerCase() && pass === STATIC_ADMIN_PASSWORD) {
                 loginAsStaticAdmin()
+                writeTrustedDevice(trustedDevice)
                 toast.success('Admin login successful')
                 navigate('/admin/users')
                 return
@@ -65,6 +76,14 @@ const Login = () => {
                 navigate('/')
                 return
             }
+            writeTrustedDevice(trustedDevice)
+            logAuthActivity({
+                type: 'login',
+                email,
+                role: existingProfile?.role || 'client',
+                method: 'email-password',
+                detail: 'Signed in with email and password.',
+            })
             navigate('/cases')
             toast.success('Signin Successful')
         } catch (err) {
@@ -92,7 +111,10 @@ const Login = () => {
                     </div>
 
                     <p className='mt-3 text-xl text-center text-gray-600 '>
-                        Welcome back!
+                        Welcome back to CaseCloud.
+                    </p>
+                    <p className='mt-2 text-center text-sm text-gray-500'>
+                        Sign in securely to access your role-based workspace.
                     </p>
 
                     <div onClick={handleGooleSignIn} className='flex cursor-pointer items-center justify-center mt-4 text-gray-600 transition-colors duration-300 transform border rounded-lg   hover:bg-gray-50 '>
@@ -163,8 +185,27 @@ const Login = () => {
                                 autoComplete='current-password'
                                 name='password'
                                 className='block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg    focus:border-blue-400 focus:ring-opacity-40  focus:outline-none focus:ring focus:ring-blue-300'
-                                type='password'
+                                type={showPassword ? 'text' : 'password'}
                             />
+                            <div className='mt-2 flex items-center justify-between text-sm text-gray-500'>
+                                <label className='flex items-center gap-2'>
+                                    <input
+                                        type='checkbox'
+                                        className='checkbox checkbox-sm'
+                                        checked={showPassword}
+                                        onChange={() => setShowPassword(current => !current)}
+                                    />
+                                    Show password
+                                </label>
+                                <label className='flex items-center gap-2'>
+                                    <input
+                                        type='checkbox'
+                                        className='checkbox checkbox-sm'
+                                        name='trustedDevice'
+                                    />
+                                    Trust this device
+                                </label>
+                            </div>
                         </div>
                         <div className='mt-6'>
                             <button
@@ -188,6 +229,13 @@ const Login = () => {
 
                         <span className='w-1/5 border-b  md:w-1/4'></span>
                     </div>
+                    <button
+                        type='button'
+                        className='mt-4 w-full text-sm font-medium text-cyan-700 hover:text-cyan-800'
+                        onClick={() => toast.success('Password reset link simulation: in this demo, please contact admin or create a fresh test account.')}
+                    >
+                        Forgot password?
+                    </button>
                 </div>
             </div>
         </div>
