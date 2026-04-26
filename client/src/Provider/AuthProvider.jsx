@@ -12,6 +12,8 @@ import {
 } from 'firebase/auth'
 import { app } from '../firebase/firebase.config'
 import { ADMIN_SESSION_KEY } from '../constants/roles'
+import { apiUrl } from '../lib/api'
+import { logAuthActivity } from '../lib/authActivity'
 
 export const AuthContext = createContext(null)
 const auth = getAuth(app)
@@ -38,11 +40,18 @@ const AuthProvider = ({ children }) => {
             photoURL: '',
         })
         setAppUser(adminProfile)
+        logAuthActivity({
+            type: 'login',
+            email: adminProfile.email,
+            role: 'admin',
+            method: 'static-admin',
+            detail: 'Signed in with the protected admin credentials.',
+        })
         setLoading(false)
     }
 
     const syncUserProfile = async (profile) => {
-        const response = await fetch('http://localhost:5000/users', {
+        const response = await fetch(apiUrl('/users'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(profile),
@@ -54,7 +63,7 @@ const AuthProvider = ({ children }) => {
     }
 
     const loadUserProfile = async email => {
-        const response = await fetch(`http://localhost:5000/users/${email}`)
+        const response = await fetch(apiUrl(`/users/${email}`))
 
         if (!response.ok) {
             throw new Error('Failed to load user profile')
@@ -81,6 +90,16 @@ const AuthProvider = ({ children }) => {
     const logOut = async () => {
         setLoading(true)
         localStorage.removeItem(ADMIN_SESSION_KEY)
+
+        if (appUser?.email) {
+            logAuthActivity({
+                type: 'logout',
+                email: appUser.email,
+                role: appUser.role,
+                method: 'session',
+                detail: 'Signed out from the current device.',
+            })
+        }
 
         if (!auth.currentUser) {
             setUser(null)
@@ -129,6 +148,13 @@ const AuthProvider = ({ children }) => {
 
                 if (existingProfile) {
                     setAppUser(existingProfile)
+                    logAuthActivity({
+                        type: 'session-restore',
+                        email: existingProfile.email,
+                        role: existingProfile.role,
+                        method: 'firebase',
+                        detail: 'Restored an existing authenticated session.',
+                    })
                 } else {
                     const fallbackProfile = {
                         name: currentUser.displayName || 'CaseCloud User',
@@ -140,6 +166,13 @@ const AuthProvider = ({ children }) => {
 
                     await syncUserProfile(fallbackProfile)
                     setAppUser(fallbackProfile)
+                    logAuthActivity({
+                        type: 'session-restore',
+                        email: fallbackProfile.email,
+                        role: fallbackProfile.role,
+                        method: 'firebase',
+                        detail: 'Created a fallback profile from an authenticated session.',
+                    })
                 }
             } catch (error) {
                 console.log(error)
