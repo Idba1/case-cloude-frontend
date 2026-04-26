@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../../Provider/AuthProvider";
 import { apiUrl } from "../../lib/api";
+import { ROLE_OPTIONS } from "../../constants/auth";
 
 const requestStyles = {
   pending_review: "bg-amber-50 text-amber-700 border border-amber-200",
@@ -16,6 +17,7 @@ const AdminUsers = () => {
   const [caseRequests, setCaseRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
 
   const loadAdminData = async () => {
     try {
@@ -74,6 +76,25 @@ const AdminUsers = () => {
     }
   };
 
+  const handleRoleUpdate = async (email, role) => {
+    try {
+      const response = await fetch(apiUrl(`/users/role/${email}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update user role.");
+      }
+
+      toast.success("User role updated.");
+      loadAdminData();
+    } catch (updateError) {
+      toast.error(updateError.message || "Could not update the role.");
+    }
+  };
+
   if (appUser?.role !== "admin") {
     return (
       <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -100,6 +121,13 @@ const AdminUsers = () => {
 
       return secondDate - firstDate;
     });
+  const managedUsers = users
+    .filter((user) => roleFilter === "all" || user.role === roleFilter)
+    .sort((firstUser, secondUser) =>
+      (firstUser.name || firstUser.email || "").localeCompare(
+        secondUser.name || secondUser.email || ""
+      )
+    );
 
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
@@ -123,6 +151,72 @@ const AdminUsers = () => {
           <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             <p className="text-sm text-slate-500">Pending Case Requests</p>
             <h2 className="mt-2 text-3xl font-black text-slate-900">{pendingCaseRequests.length}</h2>
+          </div>
+        </section>
+
+        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Role management</h2>
+              <p className="text-sm text-slate-500">
+                Review every account, filter by role, and assign the right workspace access.
+              </p>
+            </div>
+
+            <select
+              className="select select-bordered w-full md:w-56"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+            >
+              <option value="all">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="lawyer">Lawyer</option>
+              <option value="client">Client</option>
+              <option value="assistant">Assistant</option>
+              <option value="support">Support</option>
+            </select>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {managedUsers.map((user) => (
+              <div
+                key={user.email}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5"
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-lg font-bold text-slate-900">
+                      {user.name || "Unnamed user"}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+                    <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-400">
+                      Approval: {user.approvalStatus || "approved"}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                    <select
+                      className="select select-bordered w-full md:w-52"
+                      value={user.role || "client"}
+                      onChange={(e) => handleRoleUpdate(user.email, e.target.value)}
+                      disabled={user.email === appUser?.email}
+                    >
+                      {ROLE_OPTIONS.map((roleOption) => (
+                        <option key={roleOption.value} value={roleOption.value}>
+                          {roleOption.label}
+                        </option>
+                      ))}
+                      <option value="admin">Admin</option>
+                    </select>
+                    {user.email === appUser?.email ? (
+                      <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+                        Current Admin
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 

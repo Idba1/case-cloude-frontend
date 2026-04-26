@@ -1,9 +1,12 @@
-import { useContext } from "react"
+import { useContext, useState } from "react"
 import toast from "react-hot-toast"
 import { Link, useNavigate } from "react-router-dom"
 import { AuthContext } from "../../Provider/AuthProvider"
+import { ROLE_OPTIONS } from "../../constants/auth"
+import { logAuthActivity } from "../../lib/authActivity"
 
 const Registration = () => {
+  const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
   const {
     signInWithGoogle,
@@ -19,19 +22,26 @@ const Registration = () => {
     e.preventDefault()
     const form = e.target
     const email = form.email.value
-    const name = form.name.value
+    const name = form.name.value.trim()
     const photo = form.photo.value
     const role = form.role.value
     const pass = form.password.value
-    console.log({ email, pass, name, photo, role })
-    try {
+    const normalizedEmail = email.toLowerCase()
 
-      //User Registration
-      const result = await createUser(email, pass)
-      console.log(result)
+    if (!name) {
+      toast.error('Please enter your full name.')
+      return
+    }
+
+    if (pass.length < 6) {
+      toast.error('Password must be at least 6 characters.')
+      return
+    }
+
+    try {
+      await createUser(email, pass)
       await updateUserProfile(name, photo)
       setUser({ ...user, photoURL: photo, displayName: name })
-      const normalizedEmail = email.toLowerCase()
       const profile = {
         name,
         email: normalizedEmail,
@@ -41,7 +51,14 @@ const Registration = () => {
       }
       await syncUserProfile(profile)
       setAppUser(profile)
-      navigate('/cases')
+      logAuthActivity({
+        type: 'registration',
+        email: normalizedEmail,
+        role,
+        method: 'email-password',
+        detail: 'Created a new CaseCloud account.',
+      })
+      navigate(role === 'lawyer' ? '/' : '/cases')
       toast.success(
         profile.role === "lawyer"
           ? "Lawyer registration submitted. Wait for admin approval."
@@ -67,6 +84,13 @@ const Registration = () => {
       }
       await syncUserProfile(profile)
       setAppUser(profile)
+      logAuthActivity({
+        type: 'login',
+        email: normalizedEmail,
+        role: profile.role,
+        method: 'google',
+        detail: 'Signed in through Google onboarding.',
+      })
       toast.success('Signin Successful')
       navigate('/cases')
     } catch (err) {
@@ -87,7 +111,10 @@ const Registration = () => {
           </div>
 
           <p className='mt-3 text-xl text-center text-gray-600 '>
-            Get Your Free Account Now.
+            Create your CaseCloud workspace.
+          </p>
+          <p className='mt-2 text-center text-sm text-gray-500'>
+            Clients join instantly. Lawyers require admin approval before dashboard access.
           </p>
 
           <div onClick={handleGoogleSignIn} className='flex cursor-pointer items-center justify-center mt-4 text-gray-600 transition-colors duration-300 transform border rounded-lg   hover:bg-gray-50 '>
@@ -185,9 +212,11 @@ const Registration = () => {
                 defaultValue='client'
                 className='block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg focus:border-blue-400 focus:ring-opacity-40 focus:outline-none focus:ring focus:ring-blue-300'
               >
-                <option value='client'>Client</option>
-                <option value='lawyer'>Lawyer</option>
-                <option value='assistant'>Assistant</option>
+                {ROLE_OPTIONS.map((roleOption) => (
+                  <option key={roleOption.value} value={roleOption.value}>
+                    {roleOption.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -206,8 +235,17 @@ const Registration = () => {
                 autoComplete='current-password'
                 name='password'
                 className='block w-full px-4 py-2 text-gray-700 bg-white border rounded-lg    focus:border-blue-400 focus:ring-opacity-40  focus:outline-none focus:ring focus:ring-blue-300'
-                type='password'
+                type={showPassword ? 'text' : 'password'}
               />
+              <label className='mt-2 flex items-center gap-2 text-sm text-gray-500'>
+                <input
+                  type='checkbox'
+                  className='checkbox checkbox-sm'
+                  checked={showPassword}
+                  onChange={() => setShowPassword(current => !current)}
+                />
+                Show password
+              </label>
             </div>
             <div className='mt-6'>
               <button

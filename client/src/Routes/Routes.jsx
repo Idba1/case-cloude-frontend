@@ -11,6 +11,8 @@ import Contact from "../Pages/Marketing/Contact";
 import AdminUsers from "../Pages/Admin/AdminUsers";
 import DocumentsCenter from "../Pages/Documents/DocumentsCenter";
 import NotificationsCenter from "../Pages/Notifications/NotificationsCenter";
+import ProfilePage from "../Pages/Profile/ProfilePage";
+import SecurityCenter from "../Pages/Profile/SecurityCenter";
 import ScheduleBoard from "../Pages/Schedule/ScheduleBoard";
 import HelpDeskChatbot from "../Pages/Support/HelpDeskChatbot";
 import Cases from "../Components/case/Cases";
@@ -44,6 +46,14 @@ const Routes = createBrowserRouter([
             {
                 path: '/notifications',
                 element: <NotificationsCenter></NotificationsCenter>,
+            },
+            {
+                path: '/profile',
+                element: <ProfilePage></ProfilePage>,
+            },
+            {
+                path: '/security',
+                element: <SecurityCenter></SecurityCenter>,
             },
             {
                 path: '/help-desk',

@@ -48,6 +48,9 @@ const Navbar = () => {
                             <Link to="/notifications">Notifications</Link>
                         </li>
                         <li>
+                            <Link to="/profile">Profile</Link>
+                        </li>
+                        <li>
                             <Link to="/help-desk">Help Desk</Link>
                         </li>
                         {appUser?.role === "admin" ? (
@@ -117,6 +120,12 @@ const Navbar = () => {
                                 </li>
                                 <li>
                                     <Link to="/notifications">Notifications</Link>
+                                </li>
+                                <li>
+                                    <Link to="/profile">Profile</Link>
+                                </li>
+                                <li>
+                                    <Link to="/security">Security Center</Link>
                                 </li>
                                 <li>
                                     <Link to="/help-desk">Help Desk</Link>
