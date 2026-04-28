@@ -46,7 +46,7 @@ const createCalendarDays = (cursorDate) => {
 };
 
 const ScheduleBoard = () => {
-  const { appUser, loading: authLoading } = useContext(AuthContext);
+  const { loading: authLoading } = useContext(AuthContext);
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,24 +79,7 @@ const ScheduleBoard = () => {
     loadCases();
   }, []);
 
-  const role = appUser?.role || "client";
-  const userEmail = appUser?.email?.toLowerCase() || "";
-  const lawyerPendingApproval =
-    role === "lawyer" && appUser?.approvalStatus !== "approved";
-
-  const visibleCases = useMemo(() => {
-    return cases.filter((item) => {
-      if (role === "client") {
-        return item.client?.email?.toLowerCase() === userEmail;
-      }
-
-      if (role === "lawyer") {
-        return item.lawyer?.email?.toLowerCase() === userEmail;
-      }
-
-      return true;
-    });
-  }, [cases, role, userEmail]);
+  const visibleCases = useMemo(() => cases, [cases]);
 
   const appointmentEntries = useMemo(() => {
     return visibleCases
@@ -222,19 +205,6 @@ const ScheduleBoard = () => {
     );
   }
 
-  if (lawyerPendingApproval) {
-    return (
-      <div className="bg-slate-100 px-4 py-8 md:px-8">
-        <div className="mx-auto max-w-7xl rounded-3xl border border-amber-200 bg-amber-50 px-6 py-12 text-center">
-          <h2 className="text-2xl font-bold text-slate-900">Lawyer approval pending</h2>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Your lawyer profile must be approved before you can access the shared schedule.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-slate-100 px-4 py-8 md:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -245,12 +215,10 @@ const ScheduleBoard = () => {
                 Schedule Management
               </p>
               <h1 className="mt-2 text-3xl font-black md:text-4xl">
-                Appointment calendar
+                Shared appointment calendar
               </h1>
               <p className="mt-3 max-w-2xl text-sm text-slate-200 md:text-base">
-                {role === "client"
-                  ? "View your scheduled consultations, hearings, and follow-ups in one clean calendar."
-                  : "Track hearings, meetings, and deadlines across your visible cases with a monthly calendar and upcoming agenda."}
+                Track hearings, meetings, deadlines, and follow-ups across every case in one shared monthly calendar and agenda view.
               </p>
             </div>
 
